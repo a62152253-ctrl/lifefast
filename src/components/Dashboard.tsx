@@ -32,7 +32,8 @@ import {
   Utensils,
   Play,
   Wallet,
-  Heart
+  Heart,
+  MessageCircle
 } from 'lucide-react';
 
 export default function Dashboard() {
@@ -253,7 +254,7 @@ export default function Dashboard() {
                    { label: 'Posiłki', icon: Utensils, path: '/meals', color: 'bg-rose-50 text-rose-600' },
                    { label: 'Zakupy', icon: ShoppingBag, path: '/shopping', color: 'bg-emerald-50 text-emerald-600' },
                    { label: 'Budżet', icon: Wallet, path: '/budget', color: 'bg-amber-50 text-amber-600' },
-                   { label: 'Mood', icon: Heart, path: '/mood', color: 'bg-indigo-50 text-indigo-600' }
+                   { label: 'Chat', icon: MessageCircle, path: '/chat', color: 'bg-purple-50 text-purple-600' }
                  ].map(tool => (
                    <Link key={tool.label} to={tool.path} className="group">
                       <div className="p-6 rounded-[2rem] bg-gray-50 group-hover:bg-indigo-600 group-hover:shadow-2xl group-hover:shadow-indigo-200 transition-all duration-500 flex flex-col items-center gap-4">

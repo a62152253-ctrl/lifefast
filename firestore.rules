@@ -205,5 +205,40 @@ service cloud.firestore {
       allow update: if isSignedIn() && (existing().toEmail == request.auth.token.email || existing().fromUid == request.auth.uid);
       allow delete: if isSignedIn() && (resource.data.toEmail == request.auth.token.email || resource.data.fromUid == request.auth.uid);
     }
+
+    // 9. Messages (Chat)
+    function isValidMessage(data) {
+      return data.content is string && data.content.size() > 0 && data.content.size() <= 500 &&
+             data.fromUid is string && data.fromUid.size() <= 128 &&
+             data.toUid is string && data.toUid.size() <= 128 &&
+             data.chatId is string && data.chatId.size() <= 257 &&
+             data.type in ['text', 'system'] &&
+             data.read is bool &&
+             data.timestamp is timestamp;
+    }
+
+    function isValidChatId(chatId, userUid, partnerUid) {
+      return chatId == [userUid, partnerUid].sort().join('_') || 
+             chatId == [partnerUid, userUid].sort().join('_');
+    }
+
+    match /messages/{messageId} {
+      allow get: if isSignedIn() && (existing().fromUid == request.auth.uid || existing().toUid == request.auth.uid);
+      allow list: if isSignedIn() && 
+                   (resource.data.fromUid == request.auth.uid || resource.data.toUid == request.auth.uid);
+      allow create: if isSignedIn() && 
+                      isValidMessage(incoming()) && 
+                      incoming().fromUid == request.auth.uid &&
+                      incoming().timestamp == request.time &&
+                      incoming().read == false &&
+                      incoming().toUid != request.auth.uid &&
+                      isValidChatId(incoming().chatId, request.auth.uid, incoming().toUid) &&
+                      isValidId(messageId);
+      allow update: if isSignedIn() && 
+                      existing().toUid == request.auth.uid && 
+                      incoming().diff(existing()).affectedKeys().hasOnly(['read']) &&
+                      incoming().read == true;
+      allow delete: if false; // Messages should not be deletable for audit trail
+    }
   }
 }

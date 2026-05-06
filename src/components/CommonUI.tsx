@@ -20,7 +20,8 @@ import {
   Bell,
   Menu,
   X,
-  ArrowRight
+  ArrowRight,
+  MessageCircle
 } from 'lucide-react';
 import React, { ReactNode } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -46,6 +47,7 @@ export const NAV_ITEMS: NavItem[] = [
   { id: 'budget', label: 'Finanse', icon: Wallet, path: '/budget' },
   { id: 'shopping', label: 'Zakupy', icon: ShoppingBag, path: '/shopping' },
   { id: 'notes', label: 'Notatki', icon: NotebookPen, path: '/notes' },
+  { id: 'chat', label: 'Chat', icon: MessageCircle, path: '/chat' },
   { id: 'settings', label: 'Opcje', icon: SettingsIcon, path: '/settings' },
 ];
 
@@ -60,6 +62,7 @@ export const DIRECT_NAV_ITEMS: NavItem[] = [
   { id: 'budget', label: 'Finanse', icon: Wallet, path: '/direct/budget' },
   { id: 'shopping', label: 'Zakupy', icon: ShoppingBag, path: '/direct/shopping' },
   { id: 'notes', label: 'Notatki', icon: NotebookPen, path: '/direct/notes' },
+  { id: 'chat', label: 'Chat', icon: MessageCircle, path: '/direct/chat' },
   { id: 'settings', label: 'Opcje', icon: SettingsIcon, path: '/direct/settings' },
 ];
 

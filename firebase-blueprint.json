@@ -1,0 +1,94 @@
+{
+  "entities": {
+    "Task": {
+      "title": "Task",
+      "description": "A daily task to complete",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "Title of the task" },
+        "completed": { "type": "boolean", "description": "Whether the task is finished" },
+        "priority": { "type": "string", "enum": ["low", "medium", "high"], "description": "Importance level" },
+        "userId": { "type": "string", "description": "Owner UID" },
+        "createdAt": { "type": "object", "format": "date-time", "description": "Server timestamp" }
+      },
+      "required": ["title", "completed", "userId", "createdAt"]
+    },
+    "ShoppingItem": {
+      "title": "Shopping Item",
+      "description": "Item on a shared shopping list",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Item name" },
+        "checked": { "type": "boolean", "description": "Whether it's bought" },
+        "quantity": { "type": "string", "description": "Amount needed" },
+        "addedBy": { "type": "string", "description": "UID of user who added it" },
+        "listId": { "type": "string", "description": "List identifier for sharing" },
+        "createdAt": { "type": "object", "format": "date-time", "description": "Server timestamp" }
+      },
+      "required": ["name", "checked", "listId", "createdAt"]
+    },
+    "Habit": {
+      "title": "Habit",
+      "description": "A daily habit track",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Name of the habit" },
+        "userId": { "type": "string", "description": "Owner UID" },
+        "completions": { 
+          "type": "object", 
+          "description": "Map of dates (YYYY-MM-DD) to completion status" 
+        },
+        "createdAt": { "type": "object", "format": "date-time", "description": "Server timestamp" }
+      },
+      "required": ["name", "userId", "createdAt"]
+    },
+    "Note": {
+      "title": "Note",
+      "description": "A person note",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "Optional title" },
+        "content": { "type": "string", "description": "Note body" },
+        "userId": { "type": "string", "description": "Owner UID" },
+        "createdAt": { "type": "object", "format": "date-time", "description": "Creation timestamp" },
+        "updatedAt": { "type": "object", "format": "date-time", "description": "Last update timestamp" }
+      },
+      "required": ["content", "userId", "createdAt", "updatedAt"]
+    },
+    "BudgetTransaction": {
+      "title": "Budget Transaction",
+      "description": "Income or expense record",
+      "type": "object",
+      "properties": {
+        "description": { "type": "string", "description": "What was the money for" },
+        "amount": { "type": "number", "description": "Value in currency" },
+        "type": { "type": "string", "enum": ["income", "expense"], "description": "Transaction direction" },
+        "date": { "type": "object", "format": "date-time", "description": "Transaction timestamp" },
+        "userId": { "type": "string", "description": "Owner UID" },
+        "category": { "type": "string", "description": "Broad category" }
+      },
+      "required": ["description", "amount", "type", "date", "userId"]
+    },
+    "PlanItem": {
+      "title": "Plan Item",
+      "description": "Scheduled activity for a specific day",
+      "type": "object",
+      "properties": {
+        "time": { "type": "string", "description": "HH:mm format time" },
+        "activity": { "type": "string", "description": "Description of activity" },
+        "userId": { "type": "string", "description": "Owner UID" },
+        "date": { "type": "string", "description": "YYYY-MM-DD format date" },
+        "createdAt": { "type": "object", "format": "date-time", "description": "Creation timestamp" }
+      },
+      "required": ["time", "activity", "userId", "date", "createdAt"]
+    }
+  },
+  "firestore": {
+    "tasks/{taskId}": { "schema": "Task", "description": "User tasks" },
+    "shoppingItems/{itemId}": { "schema": "ShoppingItem", "description": "Shared shopping list items" },
+    "habits/{habitId}": { "schema": "Habit", "description": "Daily habits tracking" },
+    "notes/{noteId}": { "schema": "Note", "description": "Personal notes" },
+    "budget/{transactionId}": { "schema": "BudgetTransaction", "description": "Budget tracking records" },
+    "plans/{planId}": { "schema": "PlanItem", "description": "Daily schedule items" }
+  }
+}

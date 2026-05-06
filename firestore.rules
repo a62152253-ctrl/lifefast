@@ -1,0 +1,209 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 0.1 Helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function getPartnerUid() {
+      return get(/databases/$(database)/documents/userProfiles/$(request.auth.uid)).data.partnerUid;
+    }
+
+    function isPartnerOf(userId) {
+      return isSignedIn() && getPartnerUid() == userId;
+    }
+
+    // 1. Tasks
+    function isValidTask(data) {
+      return data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
+             data.completed is bool &&
+             data.priority in ['low', 'medium', 'high'] &&
+             data.userId is string && data.userId.size() <= 128 &&
+             data.createdAt is timestamp;
+    }
+
+    match /tasks/{taskId} {
+      allow get: if isOwner(existing().userId) || isPartnerOf(existing().userId);
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isPartnerOf(resource.data.userId));
+      allow create: if isSignedIn() && 
+                      isValidTask(incoming()) && 
+                      incoming().userId == request.auth.uid &&
+                      incoming().createdAt == request.time &&
+                      isValidId(taskId);
+      allow update: if (isOwner(existing().userId) || isPartnerOf(existing().userId)) && 
+                      isValidTask(incoming()) &&
+                      incoming().userId == existing().userId &&
+                      incoming().createdAt == existing().createdAt &&
+                      incoming().diff(existing()).affectedKeys().hasOnly(['completed', 'title', 'priority']);
+      allow delete: if isOwner(existing().userId) || isPartnerOf(existing().userId);
+    }
+
+    // 2. Shopping Items
+    function isValidShoppingItem(data) {
+      return data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+             data.checked is bool &&
+             data.quantity is string && data.quantity.size() <= 50 &&
+             data.addedBy is string &&
+             data.listId is string && data.listId.size() <= 64 &&
+             data.createdAt is timestamp;
+    }
+
+    match /shoppingItems/{itemId} {
+      allow list: if isSignedIn() && (
+        resource.data.addedBy == request.auth.uid || 
+        isPartnerOf(resource.data.addedBy)
+      );
+      allow get: if isSignedIn() && (existing().addedBy == request.auth.uid || isPartnerOf(existing().addedBy));
+      allow create: if isSignedIn() && 
+                      isValidShoppingItem(incoming()) && 
+                      incoming().addedBy == request.auth.uid &&
+                      incoming().createdAt == request.time &&
+                      isValidId(itemId);
+      allow update: if (existing().addedBy == request.auth.uid || isPartnerOf(existing().addedBy)) && 
+                      isValidShoppingItem(incoming()) &&
+                      incoming().addedBy == existing().addedBy &&
+                      incoming().createdAt == existing().createdAt &&
+                      incoming().diff(existing()).affectedKeys().hasOnly(['checked', 'name', 'quantity']);
+      allow delete: if existing().addedBy == request.auth.uid || isPartnerOf(existing().addedBy);
+    }
+
+    // 3. Habits
+    function isValidHabit(data) {
+      return data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+             data.userId is string &&
+             data.completions is map &&
+             data.createdAt is timestamp;
+    }
+
+    match /habits/{habitId} {
+      allow get: if isOwner(existing().userId) || isPartnerOf(existing().userId);
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isPartnerOf(resource.data.userId));
+      allow create: if isSignedIn() && 
+                      isValidHabit(incoming()) && 
+                      incoming().userId == request.auth.uid &&
+                      incoming().createdAt == request.time &&
+                      isValidId(habitId);
+      allow update: if (isOwner(existing().userId) || isPartnerOf(existing().userId)) &&
+                      isValidHabit(incoming()) &&
+                      incoming().userId == existing().userId &&
+                      incoming().createdAt == existing().createdAt &&
+                      incoming().diff(existing()).affectedKeys().hasOnly(['completions', 'name']);
+      allow delete: if isOwner(existing().userId) || isPartnerOf(existing().userId);
+    }
+
+    // 4. Notes
+    function isValidNote(data) {
+      return data.content is string && data.content.size() > 0 && data.content.size() <= 10000 &&
+             (data.title == null || (data.title is string && data.title.size() <= 200)) &&
+             data.userId is string &&
+             data.createdAt is timestamp &&
+             data.updatedAt is timestamp;
+    }
+
+    match /notes/{noteId} {
+      allow get: if isOwner(existing().userId) || isPartnerOf(existing().userId);
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isPartnerOf(resource.data.userId));
+      allow create: if isSignedIn() && 
+                      isValidNote(incoming()) && 
+                      incoming().userId == request.auth.uid &&
+                      incoming().createdAt == request.time &&
+                      incoming().updatedAt == request.time &&
+                      isValidId(noteId);
+      allow update: if (isOwner(existing().userId) || isPartnerOf(existing().userId)) &&
+                      isValidNote(incoming()) &&
+                      incoming().userId == existing().userId &&
+                      incoming().createdAt == existing().createdAt &&
+                      incoming().updatedAt == request.time &&
+                      incoming().diff(existing()).affectedKeys().hasOnly(['title', 'content', 'updatedAt']);
+      allow delete: if isOwner(existing().userId) || isPartnerOf(existing().userId);
+    }
+
+    // 5. Budget
+    function isValidBudget(data) {
+      return data.description is string && data.description.size() > 0 && data.description.size() <= 200 &&
+             data.amount is number &&
+             data.type in ['income', 'expense'] &&
+             data.userId is string &&
+             data.date is timestamp;
+    }
+
+    match /budget/{transactionId} {
+      allow get: if isOwner(existing().userId) || isPartnerOf(existing().userId);
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isPartnerOf(resource.data.userId));
+      allow create: if isSignedIn() && 
+                      isValidBudget(incoming()) && 
+                      incoming().userId == request.auth.uid &&
+                      incoming().date == request.time &&
+                      isValidId(transactionId);
+      allow update: if (isOwner(existing().userId) || isPartnerOf(existing().userId)) &&
+                      isValidBudget(incoming()) &&
+                      incoming().userId == existing().userId &&
+                      incoming().date == existing().date &&
+                      incoming().diff(existing()).affectedKeys().hasOnly(['description', 'amount', 'type']);
+      allow delete: if isOwner(existing().userId) || isPartnerOf(existing().userId);
+    }
+
+    // 6. Plans
+    function isValidPlan(data) {
+      return data.time is string && data.time.size() == 5 && // HH:mm
+             data.activity is string && data.activity.size() > 0 && data.activity.size() <= 200 &&
+             data.userId is string &&
+             data.date is string && data.date.size() == 10 && // YYYY-MM-DD
+             data.createdAt is timestamp;
+    }
+
+    match /plans/{planId} {
+      allow get: if isOwner(existing().userId) || isPartnerOf(existing().userId);
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isPartnerOf(resource.data.userId));
+      allow create: if isSignedIn() && 
+                      isValidPlan(incoming()) && 
+                      incoming().userId == request.auth.uid &&
+                      incoming().createdAt == request.time &&
+                      isValidId(planId);
+      allow update: if (isOwner(existing().userId) || isPartnerOf(existing().userId)) &&
+                      isValidPlan(incoming()) &&
+                      incoming().userId == existing().userId &&
+                      incoming().createdAt == existing().createdAt &&
+                      incoming().diff(existing()).affectedKeys().hasOnly(['time', 'activity']);
+      allow delete: if isOwner(existing().userId) || isPartnerOf(existing().userId);
+    }
+
+    // 7. User Profiles
+    match /userProfiles/{userId} {
+      allow get: if isSignedIn();
+      allow create, update: if isOwner(userId);
+    }
+
+    // 8. Invites
+    match /invites/{inviteId} {
+      allow read: if isSignedIn() && (resource.data.toEmail == request.auth.token.email || resource.data.fromUid == request.auth.uid);
+      allow create: if isSignedIn() && 
+                      incoming().fromUid == request.auth.uid && 
+                      isValidId(inviteId);
+      allow update: if isSignedIn() && (existing().toEmail == request.auth.token.email || existing().fromUid == request.auth.uid);
+      allow delete: if isSignedIn() && (resource.data.toEmail == request.auth.token.email || resource.data.fromUid == request.auth.uid);
+    }
+  }
+}

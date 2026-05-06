@@ -18,7 +18,12 @@ import firebaseConfig from '../../firebase-applet-config.json';
 let app;
 try {
   app = initializeApp(firebaseConfig);
-  console.log('Firebase initialized successfully');
+  console.log('Firebase initialized successfully with project:', firebaseConfig.projectId);
+  
+  // Check if we're in development mode and use emulator if needed
+  if (process.env.NODE_ENV === 'development') {
+    console.log('🔧 Development mode detected - checking Firebase rules...');
+  }
 } catch (error) {
   console.error('Firebase initialization error:', error);
   // Create a minimal app for development

@@ -47,17 +47,21 @@ export default function Habits() {
     }, (err) => handleFirestoreError(err, OperationType.LIST, 'habits'));
   }, [user]);
 
+  const [newEmoji, setNewEmoji] = useState('⚡');
+  const EMOJI_PRESETS = ['⚡','🏃','📚','💧','🧘','🍎','💪','🎯','🌿','😴','✍️','🎵'];
+
   const addHabit = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!newName.trim() || !user) return;
     try {
       await addDoc(collection(db, 'habits'), {
         name: newName,
+        emoji: newEmoji,
         userId: user.uid,
         completions: {},
         createdAt: serverTimestamp()
       });
-      setNewName(''); setIsAdding(false);
+      setNewName(''); setNewEmoji('⚡'); setIsAdding(false);
       hapticFeedback('medium');
     } catch (err) { handleFirestoreError(err, OperationType.CREATE, 'habits'); }
   };
@@ -259,24 +263,46 @@ export default function Habits() {
 
       <FloatingActionButton icon={Plus} onClick={() => setIsAdding(true)} />
 
-      <Modal isOpen={isAdding} onClose={() => setIsAdding(false)} title="Nowa Rutyna">
-        <form onSubmit={addHabit} className="space-y-12">
-           <div className="space-y-2">
-             <label className="text-[10px] font-black uppercase text-gray-300 tracking-widest px-2">Co chcesz śledzić?</label>
-             <textarea 
-               autoFocus
-               placeholder="Np. Picie wody 2L, Czytanie 20 stron..." 
-               className="w-full bg-gray-50 p-8 rounded-[2.5rem] border-none focus:ring-4 focus:ring-indigo-100 font-black text-3xl outline-none transition-all min-h-[160px] resize-none leading-tight" 
-               value={newName} 
-               onChange={(e) => setNewName(e.target.value)} 
-               required
-             />
-           </div>
+      <Modal isOpen={isAdding} onClose={() => setIsAdding(false)} title="Nowy nawyk">
+        <form onSubmit={addHabit} className="space-y-6">
+          <div className="space-y-2">
+            <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest px-1">Emoji ikona</label>
+            <div className="flex flex-wrap gap-2">
+              {EMOJI_PRESETS.map(em => (
+                <button
+                  key={em}
+                  type="button"
+                  onClick={() => setNewEmoji(em)}
+                  className={cn(
+                    'w-11 h-11 rounded-2xl text-xl flex items-center justify-center transition-all border-2',
+                    newEmoji === em
+                      ? 'border-indigo-400 bg-indigo-50 scale-110 shadow-md'
+                      : 'border-gray-100 bg-gray-50 hover:border-gray-200'
+                  )}
+                >
+                  {em}
+                </button>
+              ))}
+            </div>
+          </div>
 
-           <div className="grid grid-cols-2 gap-4">
-              <Button variant="ghost" className="py-6" onClick={() => setIsAdding(false)}>Anuluj</Button>
-              <Button type="submit" className="py-6 shadow-indigo-500/40">Zacznij nawyk</Button>
-           </div>
+          <div className="space-y-2">
+            <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest px-1">Nazwa nawyku</label>
+            <input
+              autoFocus
+              type="text"
+              placeholder="Np. Picie wody 2L..."
+              className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4 text-sm font-bold focus:ring-2 focus:ring-indigo-100 outline-none transition-all"
+              value={newName}
+              onChange={e => setNewName(e.target.value)}
+              required
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <Button variant="ghost" onClick={() => setIsAdding(false)}>Anuluj</Button>
+            <Button type="submit">Zacznij nawyk</Button>
+          </div>
         </form>
       </Modal>
     </div>

@@ -1,19 +1,20 @@
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '../lib/firebase';
 import { Button, Card, FloatingActionButton, IconButton, PageHeader, Badge, GlassCard, Modal } from './CommonUI';
-import { 
-  collection, 
-  addDoc, 
-  onSnapshot, 
-  query, 
-  where, 
-  deleteDoc, 
-  doc, 
+import {
+  collection,
+  addDoc,
+  onSnapshot,
+  query,
+  where,
+  deleteDoc,
+  doc,
+  updateDoc,
   serverTimestamp,
   orderBy
 } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
-import { Plus, Clock, Trash2, Calendar as CalendarIcon, Coffee, Briefcase, Moon, Sun, ChevronLeft, ChevronRight, MapPin } from 'lucide-react';
+import { Plus, Clock, Trash2, Calendar as CalendarIcon, Coffee, Briefcase, Moon, Sun, ChevronLeft, ChevronRight, CheckCircle2, Circle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { handleFirestoreError, OperationType } from '../lib/db';
 import { format, startOfToday, addDays, subDays, isSameDay } from 'date-fns';
@@ -54,6 +55,13 @@ export default function DailyPlan() {
     );
     return onSnapshot(q, (snap) => setItems(snap.docs.map(d => ({ id: d.id, ...d.data() }))), (err) => handleFirestoreError(err, OperationType.LIST, 'plans'));
   }, [user, partnerUid, dateStr]);
+
+  const toggleDone = async (item: any) => {
+    hapticFeedback('medium');
+    try {
+      await updateDoc(doc(db, 'plans', item.id), { done: !item.done });
+    } catch (err) { handleFirestoreError(err, OperationType.UPDATE, `plans/${item.id}`); }
+  };
 
   const addPlan = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -121,30 +129,45 @@ export default function DailyPlan() {
                      <div className="w-2 h-2 bg-[#1d1d1f] rounded-full group-hover:scale-150 transition-transform" />
                   </div>
                   
-                  <Card className="flex flex-col md:flex-row md:items-center justify-between p-8 group hover:border-[#1d1d1f] transition-all duration-500">
-                    <div className="flex items-start md:items-center gap-8 flex-1 min-w-0">
+                  <Card className={cn(
+                    "flex flex-col md:flex-row md:items-center justify-between p-6 group transition-all duration-300",
+                    item.done ? "opacity-60 bg-gray-50" : "hover:border-indigo-100"
+                  )}>
+                    <div className="flex items-start md:items-center gap-5 flex-1 min-w-0">
+                      <button
+                        type="button"
+                        onClick={() => toggleDone(item)}
+                        className="shrink-0 mt-1 md:mt-0"
+                      >
+                        {item.done
+                          ? <CheckCircle2 size={24} className="text-emerald-500" />
+                          : <Circle size={24} className="text-gray-200 group-hover:text-indigo-300 transition-colors" />
+                        }
+                      </button>
                       <div className={cn(
-                        "p-5 rounded-[2rem] shadow-xl transition-all duration-500 group-hover:scale-110",
-                        parseInt(item.time.split(':')[0]) < 12 ? "bg-amber-50 text-amber-500 shadow-amber-100" : "bg-indigo-50 text-indigo-500 shadow-indigo-100"
+                        "p-3.5 rounded-2xl transition-all duration-300 shrink-0",
+                        item.done
+                          ? "bg-gray-100 text-gray-400"
+                          : parseInt(item.time.split(':')[0]) < 12 ? "bg-amber-50 text-amber-500" : "bg-indigo-50 text-indigo-500"
                       )}>
                         {getTimeIcon(item.time)}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-3 mb-2">
-                           <span className="text-2xl font-black text-[#1d1d1f] tracking-tighter">{item.time}</span>
-                           <Badge variant="secondary">Punktualnie</Badge>
-                        </div>
-                        <h3 className="font-extrabold text-2xl text-[#1d1d1f]/80 group-hover:text-[#1d1d1f] transition-colors leading-tight uppercase tracking-tight">
+                        <span className="text-sm font-black text-gray-400 tracking-widest">{item.time}</span>
+                        <h3 className={cn(
+                          "font-black text-lg tracking-tight leading-tight mt-0.5",
+                          item.done ? "line-through text-gray-400" : "text-[#1d1d1f]"
+                        )}>
                           {item.activity}
                         </h3>
                       </div>
                     </div>
-                    
-                    <div className="flex items-center gap-4 justify-end mt-6 md:mt-0 opacity-0 group-hover:opacity-100 transition-all translate-x-4 group-hover:translate-x-0">
-                       <IconButton 
-                        icon={Trash2} 
-                        onClick={() => deleteDoc(doc(db, 'plans', item.id))} 
-                        className="text-gray-300 hover:text-rose-500 hover:bg-rose-50 p-4 rounded-2xl" 
+
+                    <div className="flex items-center gap-2 mt-4 md:mt-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <IconButton
+                        icon={Trash2}
+                        onClick={() => { hapticFeedback('heavy'); deleteDoc(doc(db, 'plans', item.id)); }}
+                        className="text-gray-300 hover:text-rose-500 hover:bg-rose-50"
                       />
                     </div>
                   </Card>

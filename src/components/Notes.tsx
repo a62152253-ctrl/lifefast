@@ -22,6 +22,18 @@ import { format } from 'date-fns';
 import { pl } from 'date-fns/locale';
 import { summarizeNote } from '../services/geminiService';
 
+const NOTE_COLORS = [
+  { id: 'white',  bg: 'bg-white',        label: '⬜' },
+  { id: 'yellow', bg: 'bg-amber-50',     label: '🟡' },
+  { id: 'blue',   bg: 'bg-blue-50',      label: '🔵' },
+  { id: 'green',  bg: 'bg-emerald-50',   label: '🟢' },
+  { id: 'pink',   bg: 'bg-rose-50',      label: '🔴' },
+  { id: 'purple', bg: 'bg-violet-50',    label: '🟣' },
+];
+function getNoteColor(id: string) {
+  return NOTE_COLORS.find(c => c.id === id) ?? NOTE_COLORS[0];
+}
+
 export default function Notes() {
   const [user] = useAuthState(auth);
   const [notes, setNotes] = useState<any[]>([]);
@@ -29,6 +41,7 @@ export default function Notes() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
+  const [noteColor, setNoteColor] = useState('white');
   const [search, setSearch] = useState('');
   const [isSummarizing, setIsSummarizing] = useState(false);
 
@@ -47,10 +60,10 @@ export default function Notes() {
     if (!content.trim() || !user) return;
     try {
       if (editingNote) {
-        await updateDoc(doc(db, 'notes', editingNote.id), { title, content, updatedAt: serverTimestamp() });
+        await updateDoc(doc(db, 'notes', editingNote.id), { title, content, color: noteColor, updatedAt: serverTimestamp() });
         hapticFeedback('medium');
       } else {
-        await addDoc(collection(db, 'notes'), { title, content, userId: user.uid, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+        await addDoc(collection(db, 'notes'), { title, content, color: noteColor, userId: user.uid, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
         hapticFeedback('medium');
       }
       closeModal();
@@ -61,6 +74,7 @@ export default function Notes() {
     setEditingNote(null);
     setTitle('');
     setContent('');
+    setNoteColor('white');
     setIsModalOpen(true);
     hapticFeedback('light');
   };
@@ -69,6 +83,7 @@ export default function Notes() {
     setEditingNote(note);
     setTitle(note.title || '');
     setContent(note.content);
+    setNoteColor(note.color || 'white');
     setIsModalOpen(true);
     hapticFeedback('light');
   };
@@ -78,6 +93,7 @@ export default function Notes() {
     setEditingNote(null);
     setTitle('');
     setContent('');
+    setNoteColor('white');
   };
 
   const handleAiSummarize = async () => {
@@ -152,8 +168,8 @@ export default function Notes() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: idx * 0.05 }}
                 >
-                  <Card 
-                    className="p-8 h-full flex flex-col group cursor-pointer hover:border-[#1d1d1f] transition-all duration-500 shadow-[0_8px_30px_rgb(0,0,0,0.02)] hover:shadow-xl hover:shadow-gray-200/40 relative" 
+                  <Card
+                    className={cn("p-8 h-full flex flex-col group cursor-pointer hover:border-gray-200 transition-all duration-500 shadow-[0_4px_20px_rgba(0,0,0,0.04)] hover:shadow-xl relative", getNoteColor(note.color || 'white').bg)}
                     onClick={() => openEditNote(note)}
                   >
                     <div className="flex items-start justify-between mb-6">
@@ -215,13 +231,33 @@ export default function Notes() {
       >
         <form onSubmit={saveNote} className="space-y-10">
            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest px-1">Kolor notatki</label>
+              <div className="flex gap-2">
+                {NOTE_COLORS.map(c => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => setNoteColor(c.id)}
+                    className={cn(
+                      'w-9 h-9 rounded-xl border-2 transition-all text-sm',
+                      c.bg,
+                      noteColor === c.id ? 'border-indigo-400 scale-110 shadow-md' : 'border-gray-200 hover:border-gray-300'
+                    )}
+                  >
+                    {noteColor === c.id ? '✓' : ''}
+                  </button>
+                ))}
+              </div>
+           </div>
+
+           <div className="space-y-2">
               <label className="text-[10px] font-black uppercase text-gray-300 tracking-widest px-4 block">Tytuł (opcjonalnie)</label>
-              <input 
-                type="text" 
-                placeholder="Nadaj tytuł..." 
-                className="w-full bg-transparent p-4 rounded-2xl border-none focus:ring-0 font-black text-4xl outline-none transition-all placeholder:text-gray-100 text-[#1d1d1f]" 
-                value={title} 
-                onChange={(e) => setTitle(e.target.value)} 
+              <input
+                type="text"
+                placeholder="Nadaj tytuł..."
+                className="w-full bg-transparent p-4 rounded-2xl border-none focus:ring-0 font-black text-4xl outline-none transition-all placeholder:text-gray-100 text-[#1d1d1f]"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
               />
            </div>
 

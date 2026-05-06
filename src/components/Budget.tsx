@@ -11,7 +11,8 @@ import {
   doc, 
   updateDoc,
   serverTimestamp,
-  orderBy
+  orderBy,
+  limit
 } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
 import { Plus, Wallet, Trash2, Edit2, TrendingUp, TrendingDown, DollarSign, ReceiptText, PieChart, ArrowUpRight, ArrowDownRight, Search, Filter } from 'lucide-react';
@@ -41,62 +42,246 @@ export default function Budget() {
   ];
 
   useEffect(() => {
-    if (!user) return;
-    const q = query(
+    // Early return if user is not available
+    if (!user) {
+      console.log('👤 No user provided - skipping budget transactions fetch');
+      return;
+    }
+
+    console.log(`💰 Fetching budget transactions for user: ${user.uid}`);
+
+    const transactionsQuery = query(
       collection(db, 'budget'), 
       where('userId', '==', user.uid), 
-      orderBy('date', 'desc')
+      orderBy('date', 'desc'),
+      limit(100) // Prevent excessive data loading
     );
-    return onSnapshot(q, (snap) => setTransactions(snap.docs.map(d => ({ id: d.id, ...d.data() }))), (err) => handleFirestoreError(err, OperationType.LIST, 'budget'));
+    
+    const unsubscribe = onSnapshot(
+      transactionsQuery,
+      (snapshot) => {
+        try {
+          const transactions = snapshot.docs.map((doc) => {
+            const data = doc.data();
+            
+            // Validate transaction structure
+            if (!data.description || typeof data.amount !== 'number' || !data.type) {
+              console.warn('⚠️ Invalid transaction structure:', doc.id, data);
+              return null;
+            }
+
+            // Validate amount is positive
+            if (data.amount <= 0) {
+              console.warn('⚠️ Invalid transaction amount:', doc.id, data.amount);
+              return null;
+            }
+
+            // Validate transaction type
+            if (!['income', 'expense'].includes(data.type)) {
+              console.warn('⚠️ Invalid transaction type:', doc.id, data.type);
+              return null;
+            }
+
+            return {
+              id: doc.id,
+              ...data,
+              // Ensure consistent data types
+              amount: Number(data.amount),
+              type: data.type as 'income' | 'expense',
+              description: String(data.description).trim(),
+              category: data.category || 'Inne'
+            };
+          }).filter(Boolean); // Remove null entries
+
+          setTransactions(transactions);
+          console.log(`💰 Loaded ${transactions.length} valid transactions`);
+          
+        } catch (error) {
+          console.error('❌ Error processing transactions data:', error);
+          setTransactions([]);
+        }
+      },
+      (error) => {
+        console.error('❌ Error fetching budget transactions:', error);
+        handleFirestoreError(error, OperationType.LIST, 'budget');
+        setTransactions([]);
+      }
+    );
+
+    // Cleanup function
+    return () => {
+      console.log('🔄 Unsubscribing from budget transactions updates');
+      unsubscribe();
+    };
   }, [user]);
 
   const saveTransaction = async (e?: React.FormEvent) => {
     e?.preventDefault();
-    if (!desc.trim() || !amount || !user) return;
+    
+    // Enhanced validation
+    if (!desc.trim() || !amount || !user) {
+      hapticFeedback('heavy');
+      return;
+    }
+
+    // Clean and validate amount
+    const cleanAmount = amount.toString().replace(',', '.').replace(/[^\d.-]/g, '');
+    const parsedAmount = parseFloat(cleanAmount);
+    
+    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+      hapticFeedback('heavy');
+      console.error('❌ Nieprawidłowa kwota transakcji');
+      return;
+    }
+
+    // Reasonable limits (prevent accidental huge amounts)
+    if (parsedAmount > 1000000) {
+      hapticFeedback('heavy');
+      console.error('❌ Kwota przekracza dopuszczalny limit');
+      return;
+    }
+
+    // Validate description length
+    if (desc.trim().length < 2 || desc.trim().length > 100) {
+      hapticFeedback('heavy');
+      console.error('❌ Nieprawidłowa długość opisu (2-100 znaków)');
+      return;
+    }
+
     try {
-      const data = {
-        description: desc,
-        amount: parseFloat(amount),
+      const transactionData = {
+        description: desc.trim(),
+        amount: parsedAmount,
         type,
         userId: user.uid,
-        category: category
+        category: category || 'Inne'
       };
 
       if (editingTransaction) {
         await updateDoc(doc(db, 'budget', editingTransaction.id), {
-          ...data,
+          ...transactionData,
           updatedAt: serverTimestamp()
         });
-        hapticFeedback('medium');
+        console.log('✅ Transakcja zaktualizowana pomyślnie');
       } else {
         await addDoc(collection(db, 'budget'), {
-          ...data,
+          ...transactionData,
           date: serverTimestamp()
         });
-        hapticFeedback('medium');
+        console.log('✅ Transakcja dodana pomyślnie');
       }
       
+      hapticFeedback('medium');
       closeModal();
-    } catch (err) { handleFirestoreError(err, OperationType.CREATE, 'budget'); }
+      
+    } catch (error) {
+      hapticFeedback('heavy');
+      console.error('❌ Błąd zapisu transakcji:', error);
+      handleFirestoreError(error, OperationType.CREATE, 'budget');
+    }
   };
 
-  const openEditModal = (t: any) => {
-    setEditingTransaction(t);
-    setDesc(t.description);
-    setAmount(t.amount.toString());
-    setType(t.type);
-    setCategory(t.category || 'Inne');
-    setIsAdding(true);
-    hapticFeedback('light');
+  const openEditModal = (transaction: any) => {
+    // Validation
+    if (!transaction || !transaction.id) {
+      hapticFeedback('heavy');
+      console.error('❌ Invalid transaction provided to openEditModal');
+      return;
+    }
+
+    // Validate transaction data structure
+    if (!transaction.description || typeof transaction.amount !== 'number' || !transaction.type) {
+      hapticFeedback('heavy');
+      console.error('❌ Transaction missing required fields:', {
+        hasDescription: !!transaction.description,
+        hasAmount: typeof transaction.amount === 'number',
+        hasType: !!transaction.type
+      });
+      return;
+    }
+
+    // Validate amount is positive
+    if (transaction.amount <= 0) {
+      hapticFeedback('heavy');
+      console.error('❌ Transaction amount must be positive:', transaction.amount);
+      return;
+    }
+
+    // Validate transaction type
+    if (!['income', 'expense'].includes(transaction.type)) {
+      hapticFeedback('heavy');
+      console.error('❌ Invalid transaction type:', transaction.type);
+      return;
+    }
+
+    try {
+      // Reset form first to ensure clean state
+      closeModal();
+      
+      // Set editing transaction
+      setEditingTransaction(transaction);
+      
+      // Set form fields with validation and sanitization
+      setDesc(transaction.description.trim());
+      setAmount(transaction.amount.toString());
+      setType(transaction.type as 'income' | 'expense');
+      setCategory(transaction.category || 'Inne');
+      
+      // Open modal
+      setIsAdding(true);
+      
+      hapticFeedback('light');
+      console.log(`✅ Edit modal opened for transaction: "${transaction.description}" (${transaction.amount} PLN)`);
+      
+    } catch (error) {
+      hapticFeedback('heavy');
+      console.error('❌ Error opening edit modal:', error);
+      
+      // Reset to safe state
+      closeModal();
+    }
   };
 
   const closeModal = () => {
-    setIsAdding(false);
-    setEditingTransaction(null);
-    setDesc('');
-    setAmount('');
-    setType('expense');
-    setCategory('Inne');
+    try {
+      // Validate current state before closing
+      const wasAdding = isAdding;
+      const wasEditing = !!editingTransaction;
+      
+      // Log the closing action
+      if (wasEditing) {
+        console.log(`🔒 Closing edit modal for transaction: "${editingTransaction?.description}"`);
+      } else if (wasAdding) {
+        console.log('🔒 Closing add transaction modal');
+      } else {
+        console.log('🔒 closeModal called but no modal was open');
+        return; // Early return if no modal is open
+      }
+
+      // Reset all modal states atomically
+      setIsAdding(false);
+      setEditingTransaction(null);
+      setDesc('');
+      setAmount('');
+      setType('expense');
+      setCategory('Inne');
+      
+      // Provide haptic feedback for successful close
+      hapticFeedback('light');
+      
+      console.log('✅ Modal closed successfully, form reset to defaults');
+      
+    } catch (error) {
+      console.error('❌ Error closing modal:', error);
+      
+      // Fallback: ensure modal is closed even if error occurs
+      try {
+        setIsAdding(false);
+        setEditingTransaction(null);
+      } catch (fallbackError) {
+        console.error('❌ Critical error in modal close fallback:', fallbackError);
+      }
+    }
   };
 
   const total = transactions.reduce((acc, t) => t.type === 'income' ? acc + t.amount : acc - t.amount, 0);
@@ -154,29 +339,45 @@ export default function Budget() {
            <Card className="p-6 bg-white/80 backdrop-blur-lg border-gray-100/50">
               <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-6 flex items-center gap-2">
                 <TrendingUp size={14} className="text-indigo-500" />
-                Szybki Przegląd
+                Wydatki wg kategorii
               </h4>
-              <div className="space-y-6">
-                 {[
-                   { label: 'Cele', value: '42%', color: 'bg-indigo-500' },
-                   { label: 'Stałe', value: '28%', color: 'bg-rose-500' },
-                   { label: 'Inne', value: '15%', color: 'bg-emerald-500' }
-                 ].map((item, i) => (
-                   <div key={i} className="space-y-2">
-                     <div className="flex justify-between text-[10px] font-black uppercase tracking-widest">
-                        <span className="text-gray-500 font-bold">{item.label}</span>
-                        <span className="text-[#1d1d1f]">{item.value}</span>
-                     </div>
-                     <div className="h-2 w-full bg-gray-50 rounded-full overflow-hidden">
-                        <motion.div 
-                          initial={{ width: 0 }}
-                          animate={{ width: item.value }}
-                          transition={{ delay: 0.5 + (i * 0.1), duration: 1, ease: "circOut" }}
-                          className={cn("h-full rounded-full shadow-sm", item.color)} 
-                        />
-                     </div>
-                   </div>
-                 ))}
+              <div className="space-y-4">
+                {(() => {
+                  const expenses = transactions.filter(t => t.type === 'expense');
+                  const total = expenses.reduce((s, t) => s + t.amount, 0) || 1;
+                  const catTotals = CATEGORIES.reduce((acc: Record<string, number>, cat) => {
+                    acc[cat.name] = expenses
+                      .filter(t => t.category === cat.name)
+                      .reduce((s, t) => s + t.amount, 0);
+                    return acc;
+                  }, {});
+                  const catColors = ['bg-indigo-500', 'bg-rose-500', 'bg-emerald-500', 'bg-amber-500', 'bg-violet-500', 'bg-cyan-500'];
+                  return CATEGORIES.filter(c => catTotals[c.name] > 0)
+                    .sort((a, b) => catTotals[b.name] - catTotals[a.name])
+                    .slice(0, 5)
+                    .map((cat, i) => {
+                      const pct = Math.round((catTotals[cat.name] / total) * 100);
+                      return (
+                        <div key={cat.name} className="space-y-1.5">
+                          <div className="flex justify-between text-[10px] font-black uppercase tracking-widest">
+                            <span className="text-gray-500">{cat.icon} {cat.name}</span>
+                            <span className="text-[#1d1d1f]">{pct}%</span>
+                          </div>
+                          <div className="h-2 w-full bg-gray-50 rounded-full overflow-hidden">
+                            <motion.div
+                              initial={{ width: 0 }}
+                              animate={{ width: `${pct}%` }}
+                              transition={{ delay: 0.3 + i * 0.08, duration: 0.8, ease: 'easeOut' }}
+                              className={cn('h-full rounded-full', catColors[i % catColors.length])}
+                            />
+                          </div>
+                        </div>
+                      );
+                    });
+                })()}
+                {transactions.filter(t => t.type === 'expense').length === 0 && (
+                  <p className="text-gray-300 text-xs italic">Brak wydatków do analizy.</p>
+                )}
               </div>
            </Card>
 

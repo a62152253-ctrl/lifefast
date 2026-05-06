@@ -11,7 +11,8 @@ import {
   doc, 
   updateDoc, 
   serverTimestamp,
-  orderBy
+  orderBy,
+  limit
 } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
 import { Plus, CheckCircle2, Circle, Trash2, Calendar, Flag, Filter, Search, MoreHorizontal, ArrowRight, X, Clock, BrainCircuit, Loader2 } from 'lucide-react';
@@ -36,75 +37,380 @@ export default function Tasks() {
   const [aiLoadingTaskId, setAiLoadingTaskId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!user) return;
-    const unsubProfile = onSnapshot(doc(db, 'userProfiles', user.uid), (snap) => {
-      if (snap.exists()) setPartnerUid(snap.data().partnerUid || null);
-      else setPartnerUid(null);
-    });
-    return unsubProfile;
+    // Early return if user is not available
+    if (!user) {
+      console.log('👤 No user provided - skipping partner profile fetch');
+      return;
+    }
+
+    console.log(`🔍 Fetching partner profile for user: ${user.uid}`);
+
+    const userDocRef = doc(db, 'userProfiles', user.uid);
+    
+    const unsubscribe = onSnapshot(
+      userDocRef,
+      (snapshot) => {
+        try {
+          if (snapshot.exists()) {
+            const profileData = snapshot.data();
+            const partnerId = profileData.partnerUid || null;
+            
+            setPartnerUid(partnerId);
+            
+            if (partnerId) {
+              console.log(`👫 Partner found: ${partnerId}`);
+            } else {
+              console.log('🔓 No partner assigned to user');
+            }
+          } else {
+            console.log('📝 User profile does not exist - creating default state');
+            setPartnerUid(null);
+          }
+        } catch (error) {
+          console.error('❌ Error processing partner profile data:', error);
+          setPartnerUid(null);
+        }
+      },
+      (error) => {
+        console.error('❌ Error fetching partner profile:', error);
+        handleFirestoreError(error, OperationType.LIST, 'userProfiles');
+        setPartnerUid(null);
+      }
+    );
+
+    // Cleanup function
+    return () => {
+      console.log('🔄 Unsubscribing from partner profile updates');
+      unsubscribe();
+    };
   }, [user]);
 
   useEffect(() => {
-    if (!user) return;
-    const uids = [user.uid];
-    if (partnerUid) uids.push(partnerUid);
-    const q = query(
+    // Early return if user is not available
+    if (!user) {
+      console.log('👤 No user provided - skipping tasks fetch');
+      return;
+    }
+
+    console.log(`📋 Fetching tasks for user: ${user.uid}${partnerUid ? ` + partner: ${partnerUid}` : ''}`);
+
+    // Build array of user IDs (user + partner if exists)
+    const userIds = [user.uid];
+    if (partnerUid) {
+      userIds.push(partnerUid);
+    }
+
+    const tasksQuery = query(
       collection(db, 'tasks'), 
-      where('userId', 'in', uids),
-      orderBy('createdAt', 'desc')
+      where('userId', 'in', userIds),
+      orderBy('createdAt', 'desc'),
+      limit(200) // Prevent excessive data loading
     );
-    return onSnapshot(q, (snap) => setTasks(snap.docs.map(d => ({ id: d.id, ...d.data() }))), (err) => handleFirestoreError(err, OperationType.LIST, 'tasks'));
+    
+    const unsubscribe = onSnapshot(
+      tasksQuery,
+      (snapshot) => {
+        try {
+          const tasks = snapshot.docs.map((doc) => {
+            const data = doc.data();
+            
+            // Validate task structure
+            if (!data.title || typeof data.title !== 'string') {
+              console.warn('⚠️ Invalid task title:', doc.id, data.title);
+              return null;
+            }
+
+            // Validate priority
+            if (!['low', 'medium', 'high'].includes(data.priority)) {
+              console.warn('⚠️ Invalid task priority:', doc.id, data.priority);
+              return null;
+            }
+
+            // Validate completed is boolean
+            if (typeof data.completed !== 'boolean') {
+              console.warn('⚠️ Invalid task completed status:', doc.id, data.completed);
+              return null;
+            }
+
+            return {
+              id: doc.id,
+              title: String(data.title).trim(),
+              completed: Boolean(data.completed),
+              priority: data.priority || 'medium',
+              userId: data.userId,
+              createdAt: data.createdAt,
+              updatedAt: data.updatedAt,
+              completedAt: data.completedAt,
+              // Additional metadata if present
+              titleLength: data.titleLength,
+              wordCount: data.wordCount,
+              parentTaskId: data.parentTaskId
+            };
+          }).filter(Boolean); // Remove null entries
+
+          setTasks(tasks);
+          console.log(`📋 Loaded ${tasks.length} valid tasks`);
+          
+        } catch (error) {
+          console.error('❌ Error processing tasks data:', error);
+          setTasks([]);
+        }
+      },
+      (error) => {
+        console.error('❌ Error fetching tasks:', error);
+        handleFirestoreError(error, OperationType.LIST, 'tasks');
+        setTasks([]);
+      }
+    );
+
+    // Cleanup function
+    return () => {
+      console.log('🔄 Unsubscribing from tasks updates');
+      unsubscribe();
+    };
   }, [user, partnerUid]);
 
   const addTask = async (e?: React.FormEvent) => {
     e?.preventDefault();
-    if (!newTaskTitle.trim() || !user) return;
+    
+    // Enhanced validation and sanitization
+    const sanitizedTitle = newTaskTitle.trim().replace(/\s+/g, ' ');
+    
+    if (!sanitizedTitle || !user) {
+      hapticFeedback('heavy');
+      return;
+    }
+
+    // Validate title length
+    if (sanitizedTitle.length < 2) {
+      hapticFeedback('heavy');
+      console.error('❌ Tytuł zadania jest zbyt krótki (minimum 2 znaki)');
+      return;
+    }
+
+    if (sanitizedTitle.length > 200) {
+      hapticFeedback('heavy');
+      console.error('❌ Tytuł zadania jest zbyt długi (maksimum 200 znaków)');
+      return;
+    }
+
+    // Check for duplicates (case-insensitive)
+    const existingTask = tasks.find(t => 
+      t.title.toLowerCase().trim() === sanitizedTitle.toLowerCase() && 
+      !t.completed
+    );
+    
+    if (existingTask) {
+      hapticFeedback('heavy');
+      console.error('❌ Takie zadanie już istnieje');
+      return;
+    }
+
     try {
-      await addDoc(collection(db, 'tasks'), {
-        title: newTaskTitle,
+      const taskData = {
+        title: sanitizedTitle,
         completed: false,
         priority,
         userId: user.uid,
-        createdAt: serverTimestamp()
-      });
-      setNewTaskTitle(''); setPriority('medium'); setIsAdding(false);
+        createdAt: serverTimestamp(),
+        // Add metadata for better tracking
+        titleLength: sanitizedTitle.length,
+        wordCount: sanitizedTitle.split(' ').length
+      };
+
+      await addDoc(collection(db, 'tasks'), taskData);
+      
+      // Reset form and UI state
+      setNewTaskTitle('');
+      setPriority('medium');
+      setIsAdding(false);
+      
       hapticFeedback('medium');
-    } catch (err) { handleFirestoreError(err, OperationType.CREATE, 'tasks'); }
+      console.log('✅ Zadanie dodane pomyślnie');
+      
+    } catch (error) {
+      hapticFeedback('heavy');
+      console.error('❌ Błąd dodawania zadania:', error);
+      
+      // Show user-friendly error message
+      let errorMessage = 'Wystąpił błąd podczas dodawania zadania';
+      if (error instanceof Error) {
+        if (error.message.includes('permission-denied')) {
+          errorMessage = 'Brak uprawnień do dodawania zadań';
+        } else if (error.message.includes('unavailable')) {
+          errorMessage = 'Serwis jest chwilowo niedostępny. Spróbuj ponownie';
+        } else if (error.message.includes('deadline-exceeded')) {
+          errorMessage = 'Przekroczono czas oczekiwania. Spróbuj ponownie';
+        } else {
+          errorMessage = `Błąd: ${error.message}`;
+        }
+      }
+      
+      alert(errorMessage);
+      handleFirestoreError(error, OperationType.CREATE, 'tasks');
+    }
   };
 
   const toggleTask = async (task: any) => {
+    // Validation
+    if (!task || !task.id) {
+      hapticFeedback('heavy');
+      console.error('❌ Invalid task provided to toggleTask');
+      return;
+    }
+
+    // Optimistic update - update UI immediately
+    const originalCompleted = task.completed;
+    const newCompleted = !originalCompleted;
+    
+    // Update local state optimistically
+    setTasks(prevTasks => 
+      prevTasks.map(t => 
+        t.id === task.id ? { ...t, completed: newCompleted } : t
+      )
+    );
+
+    // Provide immediate feedback
+    hapticFeedback('medium');
+    console.log(`🔄 Task ${task.id} toggled to ${newCompleted ? 'completed' : 'active'} (optimistic)`);
+
     try {
-      hapticFeedback('medium');
-      await updateDoc(doc(db, 'tasks', task.id), { completed: !task.completed });
-    } catch (err) { handleFirestoreError(err, OperationType.UPDATE, `tasks/${task.id}`); }
+      // Update in Firestore
+      await updateDoc(doc(db, 'tasks', task.id), { 
+        completed: newCompleted,
+        updatedAt: serverTimestamp(),
+        completedAt: newCompleted ? serverTimestamp() : null
+      });
+      
+      console.log(`✅ Task ${task.id} successfully updated in database`);
+      
+    } catch (error) {
+      // Rollback optimistic update on error
+      hapticFeedback('heavy');
+      console.error('❌ Failed to toggle task:', error);
+      
+      // Revert to original state
+      setTasks(prevTasks => 
+        prevTasks.map(t => 
+          t.id === task.id ? { ...t, completed: originalCompleted } : t
+        )
+      );
+      
+      console.log(`🔄 Task ${task.id} rolled back to ${originalCompleted ? 'completed' : 'active'}`);
+      
+      // Show user-friendly error
+      handleFirestoreError(error, OperationType.UPDATE, `tasks/${task.id}`);
+    }
   };
 
   const deleteTask = async (id: string) => {
-    try {
+    // Validation
+    if (!id || typeof id !== 'string') {
       hapticFeedback('heavy');
+      console.error('❌ Invalid task ID provided to deleteTask');
+      return;
+    }
+
+    // Find the task to get its title for confirmation
+    const taskToDelete = tasks.find(t => t.id === id);
+    if (!taskToDelete) {
+      hapticFeedback('heavy');
+      console.error('❌ Task not found for deletion:', id);
+      return;
+    }
+
+    // Confirmation dialog
+    const confirmed = window.confirm(
+      `Czy na pewno chcesz usunąć zadanie "${taskToDelete.title}"?`
+    );
+    
+    if (!confirmed) {
+      hapticFeedback('light');
+      console.log('🚫 Task deletion cancelled by user');
+      return;
+    }
+
+    // Optimistic update - remove from UI immediately
+    const originalTask = taskToDelete;
+    setTasks(prevTasks => prevTasks.filter(t => t.id !== id));
+    
+    hapticFeedback('heavy');
+    console.log(`🗑️ Task "${originalTask.title}" removed from UI (optimistic)`);
+
+    try {
+      // Delete from Firestore
       await deleteDoc(doc(db, 'tasks', id));
-    } catch (err) { handleFirestoreError(err, OperationType.DELETE, `tasks/${id}`); }
+      
+      console.log(`✅ Task "${originalTask.title}" successfully deleted from database`);
+      
+    } catch (error) {
+      // Rollback optimistic update on error
+      hapticFeedback('heavy');
+      console.error('❌ Failed to delete task:', error);
+      
+      // Restore the task to the list
+      setTasks(prevTasks => [...prevTasks, originalTask]);
+      
+      console.log(`🔄 Task "${originalTask.title}" restored due to deletion error`);
+      
+      // Show user-friendly error
+      handleFirestoreError(error, OperationType.DELETE, `tasks/${id}`);
+    }
   };
 
   const handleAiBreakdown = async (task: any) => {
+    // Walidacja wejściowa
+    if (!task.title || task.title.trim().length < 3) {
+      hapticFeedback('heavy');
+      return;
+    }
+
+    // Sprawdzenie czy nie jest już w trakcie przetwarzania
+    if (aiLoadingTaskId === task.id) return;
+
     setAiLoadingTaskId(task.id);
     hapticFeedback('medium');
+    
     try {
       const steps = await brainstormTaskBreakdown(task.title);
-      // For each step, create a new low-priority task
-      for (const step of steps) {
-        await addDoc(collection(db, 'tasks'), {
+      
+      // Walidacja wyniku AI
+      if (!steps || steps.length === 0) {
+        throw new Error('AI nie mogło wygenerować kroków dla tego zadania');
+      }
+
+      if (steps.length > 10) {
+        throw new Error('Zbyt wiele kroków wygenerowanych. Spróbuj uprościć zadanie.');
+      }
+
+      // Batch create tasks for better performance
+      const taskPromises = steps.map((step) => 
+        addDoc(collection(db, 'tasks'), {
           title: `[${task.title}] ${step}`,
           completed: false,
           priority: 'low',
           userId: user?.uid,
-          createdAt: serverTimestamp()
-        });
-      }
+          createdAt: serverTimestamp(),
+          parentTaskId: task.id
+        })
+      );
+
+      await Promise.all(taskPromises);
+      
       hapticFeedback('heavy');
-      alert(`AI rozbiło Twoje zadanie na ${steps.length} kroków!`);
-    } catch (e) {
-      console.error(e);
+      // Success feedback - można zastąpić toast notification
+      console.log(`✅ AI pomyślnie rozbiło zadanie na ${steps.length} kroków`);
+      
+    } catch (error) {
+      console.error('❌ Błąd podczas rozbijania zadania:', error);
+      hapticFeedback('heavy');
+      
+      // User-friendly error handling
+      const errorMessage = error instanceof Error ? error.message : 'Wystąpił nieznany błąd';
+      
+      // Można tu dodać toast notification zamiast alert
+      console.error(`Błąd: ${errorMessage}`);
+      
     } finally {
       setAiLoadingTaskId(null);
     }

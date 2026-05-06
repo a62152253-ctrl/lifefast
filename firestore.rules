@@ -209,36 +209,122 @@ service cloud.firestore {
     // 9. Messages (Chat)
     function isValidMessage(data) {
       return data.content is string && data.content.size() > 0 && data.content.size() <= 500 &&
-             data.fromUid is string && data.fromUid.size() <= 128 &&
-             data.toUid is string && data.toUid.size() <= 128 &&
-             data.chatId is string && data.chatId.size() <= 257 &&
+             data.senderId is string && data.senderId.size() <= 128 &&
+             data.participants is list && data.participants.size() == 2 &&
              data.type in ['text', 'system'] &&
              data.read is bool &&
              data.timestamp is timestamp;
     }
 
-    function isValidChatId(chatId, userUid, partnerUid) {
-      return chatId == [userUid, partnerUid].sort().join('_') || 
-             chatId == [partnerUid, userUid].sort().join('_');
-    }
-
     match /messages/{messageId} {
-      allow get: if isSignedIn() && (existing().fromUid == request.auth.uid || existing().toUid == request.auth.uid);
-      allow list: if isSignedIn() && 
-                   (resource.data.fromUid == request.auth.uid || resource.data.toUid == request.auth.uid);
+      allow get: if isSignedIn() && request.auth.uid in existing().participants;
+      allow list: if isSignedIn() && request.auth.uid in resource.data.participants;
       allow create: if isSignedIn() && 
                       isValidMessage(incoming()) && 
-                      incoming().fromUid == request.auth.uid &&
+                      incoming().senderId == request.auth.uid &&
                       incoming().timestamp == request.time &&
                       incoming().read == false &&
-                      incoming().toUid != request.auth.uid &&
-                      isValidChatId(incoming().chatId, request.auth.uid, incoming().toUid) &&
+                      request.auth.uid in incoming().participants &&
                       isValidId(messageId);
       allow update: if isSignedIn() && 
-                      existing().toUid == request.auth.uid && 
+                      request.auth.uid in existing().participants && 
                       incoming().diff(existing()).affectedKeys().hasOnly(['read']) &&
                       incoming().read == true;
       allow delete: if false; // Messages should not be deletable for audit trail
+    }
+
+    // 10. Custom Navigation
+    function isValidCustomNav(data) {
+      return data.label is string && data.label.size() > 0 && data.label.size() <= 50 &&
+             data.path is string && data.path.size() > 0 && data.path.size() <= 200 &&
+             data.isCustom is bool &&
+             data.userId is string &&
+             data.order is number;
+    }
+
+    match /users/{userId}/customNav/{navId} {
+      allow get, list: if isOwner(userId);
+      allow create: if isOwner(userId) && 
+                      isValidCustomNav(incoming()) && 
+                      incoming().userId == request.auth.uid &&
+                      incoming().isCustom == true &&
+                      isValidId(navId);
+      allow update: if isOwner(userId) && 
+                      isValidCustomNav(incoming()) &&
+                      incoming().userId == existing().userId &&
+                      incoming().isCustom == existing().isCustom &&
+                      incoming().diff(existing()).affectedKeys().hasOnly(['label', 'path', 'order']);
+      allow delete: if isOwner(userId);
+    }
+
+    // 11. Calendar Events
+    function isValidCalendarEvent(data) {
+      return data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
+             data.date is string && data.date.size() == 10 && // YYYY-MM-DD
+             (data.time == null || (data.time is string && data.time.size() == 5)) && // HH:mm or null
+             data.userId is string &&
+             data.createdAt is timestamp;
+    }
+
+    match /calendarEvents/{eventId} {
+      allow get: if isOwner(existing().userId) || isPartnerOf(existing().userId);
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isPartnerOf(resource.data.userId));
+      allow create: if isSignedIn() && 
+                      isValidCalendarEvent(incoming()) && 
+                      incoming().userId == request.auth.uid &&
+                      incoming().createdAt == request.time &&
+                      isValidId(eventId);
+      allow update: if (isOwner(existing().userId) || isPartnerOf(existing().userId)) && 
+                      isValidCalendarEvent(incoming()) &&
+                      incoming().userId == existing().userId &&
+                      incoming().createdAt == existing().createdAt &&
+                      incoming().diff(existing()).affectedKeys().hasOnly(['title', 'date', 'time']);
+      allow delete: if isOwner(existing().userId) || isPartnerOf(existing().userId);
+    }
+
+    // 12. Shared Goals
+    function isValidSharedGoal(data) {
+      return data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
+             data.participants is list && data.participants.size() >= 2 &&
+             data.type in ['challenge', 'monthly', 'weekly'] &&
+             data.createdAt is timestamp;
+    }
+
+    match /sharedGoals/{goalId} {
+      allow get: if isSignedIn() && request.auth.uid in existing().participants;
+      allow list: if isSignedIn() && request.auth.uid in resource.data.participants;
+      allow create: if isSignedIn() && 
+                      isValidSharedGoal(incoming()) && 
+                      request.auth.uid in incoming().participants &&
+                      incoming().createdAt == request.time &&
+                      isValidId(goalId);
+      allow update: if isSignedIn() && 
+                      request.auth.uid in existing().participants &&
+                      isValidSharedGoal(incoming()) &&
+                      incoming().participants == existing().participants &&
+                      incoming().createdAt == existing().createdAt &&
+                      incoming().diff(existing()).affectedKeys().hasOnly(['title', 'status', 'progress']);
+      allow delete: if isSignedIn() && 
+                      request.auth.uid in existing().participants &&
+                      request.auth.uid == existing().participants[0]; // Only creator can delete
+    }
+
+    // 13. Activity Log
+    function isValidActivity(data) {
+      return data.action is string && data.action.size() > 0 && data.action.size() <= 100 &&
+             data.userId is string &&
+             data.timestamp is timestamp;
+    }
+
+    match /activity/{activityId} {
+      allow get: if isOwner(existing().userId);
+      allow list: if isOwner(userId);
+      allow create: if isSignedIn() && 
+                      isValidActivity(incoming()) && 
+                      incoming().userId == request.auth.uid &&
+                      incoming().timestamp == request.time &&
+                      isValidId(activityId);
+      allow update, delete: if false; // Activity should be immutable
     }
   }
 }

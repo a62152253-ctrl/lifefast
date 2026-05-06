@@ -8,7 +8,9 @@ import { collection, query, where, onSnapshot, doc, getDocs } from 'firebase/fir
 import { sendInvite, acceptInvite, rejectInvite, disconnectPartner, updateUserSettings, DEFAULT_SETTINGS, Invite, UserProfile } from '../lib/sharing';
 import { useDevice } from '../context/DeviceContext';
 import { useTheme } from '../context/ThemeContext';
+import { useLanguage } from '../context/LanguageContext';
 import { exportToJSON, exportToCSV } from '../lib/export';
+import CustomNavManager from './CustomNavManager';
 
 export default function Settings() {
   const [user] = useAuthState(auth);
@@ -28,6 +30,7 @@ export default function Settings() {
   const [showAiControl, setShowAiControl] = useState(false);
   const { deviceType, setDeviceType } = useDevice();
   const { theme, setTheme } = useTheme();
+  const { language, setLanguage, t } = useLanguage();
 
   useEffect(() => {
     if (!user) return;
@@ -103,13 +106,13 @@ export default function Settings() {
   return (
     <div className="space-y-10 pb-32">
       <PageHeader 
-        title="Ustawienia" 
-        subtitle="Dostosuj LifeFlow do swoich potrzeb i preferencji."
+        title={t('settings.title')} 
+        subtitle={t('settings.subtitle') || "Dostosuj LifeFlow do swoich potrzeb i preferencji."}
       />
 
       <div className="grid gap-10">
         <section className="space-y-4">
-          <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] px-2">Profil Użytkownika</h3>
+          <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] px-2">{t('settings.profile')}</h3>
           <Card className="flex items-center p-8 bg-gradient-to-br from-white to-gray-50 border-gray-100 shadow-xl shadow-indigo-500/5">
             <div className="relative group">
               <div className="w-24 h-24 rounded-[2rem] bg-indigo-600 flex items-center justify-center text-white text-4xl font-extrabold overflow-hidden mr-8 shadow-2xl shadow-indigo-200 group-hover:scale-105 transition-transform duration-500">
@@ -123,13 +126,13 @@ export default function Settings() {
             </div>
             <div>
               <div className="flex items-center gap-3 mb-1">
-                <h3 className="text-2xl font-extrabold text-[#1d1d1f]">{user?.displayName || 'Użytkownik LifeFlow'}</h3>
+                <h3 className="text-2xl font-extrabold text-[#1d1d1f]">{user?.displayName || t('settings.defaultUser') || 'Użytkownik LifeFlow'}</h3>
                 <Badge variant="primary" className="bg-indigo-50 text-indigo-600 border-none">PRO</Badge>
               </div>
               <p className="text-gray-400 font-medium">{user?.email}</p>
             </div>
             <div className="ml-auto hidden md:block">
-               <Button variant="secondary" className="px-6">Edytuj profil</Button>
+               <Button variant="secondary" className="px-6">{t('settings.editProfile') || 'Edytuj profil'}</Button>
             </div>
           </Card>
         </section>
@@ -240,19 +243,31 @@ export default function Settings() {
             <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] px-2">Aplikacja</h3>
             <Card className="divide-y divide-gray-50 p-0 overflow-hidden shadow-xl shadow-gray-200/50">
               <div onClick={() => setShowNotifications(true)} className="cursor-pointer">
-                <SettingItem icon={Bell} title="Powiadomienia" subtitle="Zarządzaj alertami i przypomnieniami" />
+                <SettingItem icon={Bell} title={t('settings.notifications')} subtitle={t('settings.notifications.subtitle') || "Zarządzaj alertami i przypomnieniami"} />
               </div>
               <div onClick={() => setShowAppearance(true)} className="cursor-pointer">
-                <SettingItem icon={Paintbrush} title="Wygląd" subtitle="Motyw ciemny, jasny i kolory akcentów" />
+                <SettingItem icon={Paintbrush} title={t('settings.appearance')} subtitle={t('settings.appearance.subtitle') || "Motyw ciemny, jasny i kolory akcentów"} />
               </div>
               <div onClick={() => setShowAiControl(true)} className="cursor-pointer">
-                <SettingItem icon={BrainCircuit} title="Sztuczna Inteligencja" subtitle="Zarządzaj mocą AI i asystentami" />
+                <SettingItem icon={BrainCircuit} title={t('settings.ai')} subtitle={t('settings.ai.subtitle') || "Zarządzaj mocą AI i asystentami"} />
               </div>
               <div onClick={() => setShowLanguage(true)} className="cursor-pointer">
-                <SettingItem icon={Globe} title="Język i Region" subtitle="Polski (Polska)" />
+                <SettingItem icon={Globe} title={t('settings.language')} subtitle={language === 'pl' ? 'Polski (Polska)' : language === 'en' ? 'English (UK)' : language === 'de' ? 'Deutsch (DE)' : language === 'fr' ? 'Français (FR)' : language === 'es' ? 'Español (ES)' : 'Italiano (IT)'} />
               </div>
               <div onClick={() => setShowSubscription(true)} className="cursor-pointer">
-                <SettingItem icon={CreditCard} title="Subskrypcja" subtitle="LifeFlow Premium - Aktywna" />
+                <SettingItem icon={CreditCard} title={t('settings.subscription') || "Subskrypcja"} subtitle={t('settings.subscription.subtitle') || "LifeFlow Premium - Aktywna"} />
+              </div>
+            </Card>
+          </section>
+
+          <section className="space-y-4">
+            <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] px-2">{t('settings.customNav') || 'Niestandardowa Nawigacja'}</h3>
+            <Card className="p-6">
+              <div className="space-y-4">
+                <p className="text-sm text-gray-600">
+                  {t('settings.customNav.description') || 'Dodaj własne karty do paska nawigacji, aby mieć szybki dostęp do ulubionych stron.'}
+                </p>
+                <CustomNavManager />
               </div>
             </Card>
           </section>
@@ -478,20 +493,40 @@ export default function Settings() {
         </div>
       </Modal>
 
-      <Modal isOpen={showLanguage} onClose={() => setShowLanguage(false)} title="Język i Region">
-        <div className="space-y-6">
-          <div className="p-6 bg-gray-50 rounded-2xl border border-gray-100 flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-8 bg-white border border-gray-100 rounded-sm overflow-hidden flex items-center justify-center font-bold text-xs">PL</div>
-              <div>
-                <p className="font-extrabold text-[#1d1d1f]">Polski (Polska)</p>
-                <p className="text-xs text-gray-400">Domyślny język systemu</p>
-              </div>
-            </div>
-            <Check className="text-indigo-600" size={20} />
+      <Modal isOpen={showLanguage} onClose={() => setShowLanguage(false)} title={t('settings.language')}>
+        <div className="space-y-4">
+          <div className="grid gap-3">
+            {[
+              { code: 'pl', name: 'Polski', flag: '🇵🇱' },
+              { code: 'en', name: 'English', flag: '🇬🇧' },
+              { code: 'de', name: 'Deutsch', flag: '🇩🇪' },
+              { code: 'fr', name: 'Français', flag: '🇫🇷' },
+              { code: 'es', name: 'Español', flag: '🇪🇸' },
+              { code: 'it', name: 'Italiano', flag: '🇮🇹' },
+            ].map(lang => (
+              <button
+                key={lang.code}
+                onClick={() => setLanguage(lang.code as any)}
+                className={cn(
+                  "p-4 rounded-2xl border-2 flex items-center justify-between transition-all",
+                  language === lang.code 
+                    ? "border-indigo-600 bg-indigo-50" 
+                    : "border-gray-100 bg-white hover:border-gray-200"
+                )}
+              >
+                <div className="flex items-center gap-4">
+                  <div className="text-2xl">{lang.flag}</div>
+                  <div className="text-left">
+                    <p className="font-bold text-gray-900">{lang.name}</p>
+                    <p className="text-xs text-gray-400">{lang.code.toUpperCase()}</p>
+                  </div>
+                </div>
+                {language === lang.code && <Check className="text-indigo-600" size={20} />}
+              </button>
+            ))}
           </div>
-          <p className="text-xs text-gray-400 text-center leading-relaxed">
-            Wersja Beta wspiera obecnie tylko język polski. Kolejne języki zostaną dodane wkrótce.
+          <p className="text-xs text-gray-400 text-center leading-relaxed pt-2">
+            {t('settings.language')} • {language === 'pl' ? 'Zmiana języka zaktualizuje cały interfejs aplikacji.' : 'Language change will update the entire app interface.'}
           </p>
         </div>
       </Modal>

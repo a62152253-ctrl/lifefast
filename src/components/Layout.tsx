@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { Menu, X, LogOut, Bell, User as UserIcon, Search, Sparkles, Zap, Smartphone } from 'lucide-react';
-import { NAV_ITEMS, DIRECT_NAV_ITEMS, IconButton, Badge, Card } from './CommonUI';
+import { Menu, X, LogOut, User as UserIcon, Sparkles, Zap, Smartphone } from 'lucide-react';
+import { NAV_ITEMS, DIRECT_NAV_ITEMS, IconButton } from './CommonUI';
+// import { useCustomNav, CUSTOM_ICONS } from '../context/CustomNavContext'; // Temporarily disabled
+import CustomNavManager from './CustomNavManager';
 import { motion, AnimatePresence } from 'motion/react';
 import { NotificationManager } from './NotificationManager';
 import NotificationCenter from './NotificationCenter';
@@ -9,297 +11,369 @@ import QuickActions from './QuickActions';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth } from '../lib/firebase';
 import { signOut } from 'firebase/auth';
-import { hapticFeedback } from '../lib/utils';
-
+import { hapticFeedback, cn } from '../lib/utils';
 import { useDevice } from '../context/DeviceContext';
 
 export default function Layout() {
   const { deviceType } = useDevice();
+  // const { customItems } = useCustomNav(); // Temporarily disabled
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const [user] = useAuthState(auth);
-  
-  // Use direct navigation items when on /direct routes
+
   const isDirectRoute = location.pathname.startsWith('/direct');
-  const navItems = isDirectRoute ? DIRECT_NAV_ITEMS : NAV_ITEMS;
+  const baseNavItems = isDirectRoute ? DIRECT_NAV_ITEMS : NAV_ITEMS;
+  const navItems = baseNavItems; // Temporarily disable custom items
 
   const handleLogout = async () => {
-    try {
-      await signOut(auth);
-      navigate('/login');
-    } catch (error) {
-      console.error('Logout error:', error);
-    }
+    try { await signOut(auth); navigate('/login'); } catch (e) { console.error(e); }
   };
 
   const content = (
-    <div className={`min-h-screen bg-gray-50 flex flex-col md:flex-row font-sans selection:bg-indigo-100 selection:text-indigo-900 ${deviceType === 'mobile' ? 'overflow-hidden max-h-screen' : ''}`}>
+    <div className={cn(
+      'min-h-screen bg-gradient-page flex flex-col md:flex-row font-sans',
+      deviceType === 'mobile' && 'overflow-hidden max-h-screen'
+    )}>
       <NotificationManager />
       <QuickActions />
-      {/* Sidebar for Desktop */}
-      <aside className={`hidden md:flex flex-col w-80 bg-white border-r border-gray-100 z-20 ${deviceType === 'mobile' ? '!hidden' : ''}`}>
-        <div className="p-10 pb-12">
-          <div className="flex items-center gap-4">
-             <div className="w-12 h-12 bg-[#1d1d1f] rounded-2xl flex items-center justify-center text-white shadow-2xl shadow-gray-200">
-               <Sparkles size={24} fill="currentColor" />
-             </div>
-             <div>
-              <h1 className="text-2xl font-display font-black text-[#1d1d1f] tracking-tighter">LifeFlow</h1>
-              <p className="text-[10px] font-black text-gray-300 uppercase tracking-[0.4em] leading-none mt-1">Version 4.0</p>
-             </div>
+
+      {/* ── Desktop Sidebar ─────────────────────────────────────────────── */}
+      <aside className={cn(
+        'hidden md:flex flex-col w-72 shrink-0 z-20',
+        'border-r border-black/[0.055] bg-white/70 backdrop-blur-xl',
+        deviceType === 'mobile' && '!hidden'
+      )}>
+        {/* Logo */}
+        <div className="px-6 py-7">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-brand flex items-center justify-center text-white shadow-[0_4px_16px_rgba(79,70,229,0.4)]">
+              <Sparkles size={20} fill="currentColor" />
+            </div>
+            <div>
+              <h1 className="text-lg font-display font-black text-[#1d1d1f] tracking-tighter leading-none">LifeFlow</h1>
+              <p className="text-[9px] font-bold text-[#aeaeb2] uppercase tracking-[0.3em] leading-none mt-0.5">v4.0</p>
+            </div>
           </div>
         </div>
-        
-        <nav className="flex-1 px-6 space-y-2 overflow-y-auto scrollbar-hide">
-           <div className="px-4 mb-4">
-             <p className="text-[10px] font-black text-gray-300 uppercase tracking-[0.2em] mb-4 px-1">Navigation</p>
-           </div>
-          {navItems.map((item) => (
+
+        <div className="px-4 mb-2">
+          <p className="text-overline px-2">Nawigacja</p>
+        </div>
+
+        {/* Nav */}
+        <nav className="flex-1 px-4 space-y-0.5 overflow-y-auto scrollbar-hide">
+          {navItems.map(item => (
             <NavLink
               key={item.id}
               to={item.path}
-              className={({ isActive }) => `
-                group flex items-center px-5 py-4 rounded-3xl transition-all duration-500
-                ${isActive 
-                  ? 'bg-[#1d1d1f] text-white shadow-2xl shadow-gray-200 font-bold' 
-                  : 'text-gray-400 hover:text-[#1d1d1f] hover:bg-gray-50'}
-              `}
+              className={({ isActive }) => cn(
+                'group flex items-center gap-3 px-3 py-2.5 rounded-[0.875rem] transition-all duration-200 relative',
+                isActive
+                  ? 'bg-[#1d1d1f] text-white nav-active-glow'
+                  : 'text-[#6e6e73] hover:text-[#1d1d1f] hover:bg-[#f5f5f7]'
+              )}
             >
-              <item.icon size={22} className={`mr-4 transition-all duration-500 group-hover:scale-110 ${window.location.pathname === item.path ? 'scale-110' : ''}`} />
-              <span className="text-sm font-black uppercase tracking-widest leading-none">{item.label}</span>
-              {window.location.pathname === item.path && (
-                <motion.div layoutId="nav-indicator" className="ml-auto w-1.5 h-1.5 bg-indigo-500 rounded-full" />
+              {({ isActive }) => (
+                <>
+                  <div className={cn(
+                    'w-7 h-7 rounded-xl flex items-center justify-center shrink-0 transition-all duration-200',
+                    isActive ? 'bg-white/15' : 'group-hover:bg-white'
+                  )}>
+                    <item.icon
+                      size={16}
+                      className={cn(
+                        'transition-colors',
+                        isActive ? 'text-white' : 'text-[#6e6e73] group-hover:text-[#1d1d1f]'
+                      )}
+                    />
+                  </div>
+                  <span className={cn(
+                    'text-[13px] font-semibold leading-none',
+                    isActive ? 'text-white' : 'text-[#1d1d1f]/70 group-hover:text-[#1d1d1f]'
+                  )}>
+                    {item.label}
+                  </span>
+                  {isActive && (
+                    <motion.div layoutId="sidebar-pip" className="ml-auto w-1.5 h-1.5 rounded-full bg-white/50" />
+                  )}
+                </>
               )}
             </NavLink>
           ))}
+
+          {/* Custom Item Button Temporarily Disabled */}
+          {/* <div className="px-2 py-2">
+            <CustomNavManager />
+          </div> */}
         </nav>
 
-        <div className="p-8 mt-auto">
-          <div className="bg-gray-50 rounded-[2rem] p-5 flex items-center justify-between group hover:bg-indigo-50 transition-all duration-500">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-white shadow-sm flex items-center justify-center text-indigo-600 font-extrabold overflow-hidden border border-white">
-                <UserIcon size={24} />
-              </div>
-              <div className="overflow-hidden">
-                <p className="text-sm font-black text-[#1d1d1f] tracking-tight truncate">{user?.displayName || user?.email || 'User'}</p>
-                <p className="text-[10px] text-gray-400 font-bold">Premium Plan</p>
-              </div>
+        {/* User footer */}
+        <div className="p-4 mt-auto border-t border-black/[0.05]">
+          <div className="flex items-center gap-3 px-3 py-2.5 rounded-2xl hover:bg-[#f5f5f7] transition-colors group">
+            <div className="w-8 h-8 rounded-xl bg-[#f5f5f7] flex items-center justify-center text-[#6e6e73] shrink-0 border border-black/[0.06]">
+              <UserIcon size={16} />
             </div>
-            <IconButton 
-              icon={LogOut} 
+            <div className="flex-1 min-w-0">
+              <p className="text-[13px] font-semibold text-[#1d1d1f] truncate leading-none">
+                {user?.displayName || user?.email || 'User'}
+              </p>
+              <p className="text-[10px] text-[#aeaeb2] mt-0.5 leading-none">Pro Plan</p>
+            </div>
+            <button
+              type="button"
               onClick={handleLogout}
-              className="bg-white/50 hover:bg-red-50 hover:text-red-600 text-gray-400"
-            />
+              className="w-7 h-7 rounded-lg flex items-center justify-center text-[#aeaeb2] hover:text-rose-500 hover:bg-rose-50 opacity-0 group-hover:opacity-100 transition-all"
+            >
+              <LogOut size={14} />
+            </button>
           </div>
         </div>
       </aside>
 
-      {/* Mobile Header */}
-      <header className={`${deviceType === 'mobile' ? 'flex' : 'md:hidden'} bg-white/80 backdrop-blur-xl border-b border-gray-100 px-6 py-4 items-center justify-between sticky top-0 z-30 shadow-sm`}>
+      {/* ── Mobile Header ─────────────────────────────────────────────────── */}
+      <header className={cn(
+        'bg-white/80 backdrop-blur-xl border-b border-black/[0.055] px-5 py-3.5',
+        'flex items-center justify-between sticky top-0 z-30',
+        deviceType === 'mobile' ? 'flex' : 'md:hidden flex'
+      )}>
         <div className="flex items-center gap-3">
-          <IconButton icon={Menu} onClick={() => setIsMenuOpen(true)} className="bg-gray-50" />
+          <button
+            type="button"
+            onClick={() => setIsMenuOpen(true)}
+            className="w-9 h-9 rounded-2xl bg-[#f5f5f7] flex items-center justify-center text-[#6e6e73] hover:text-[#1d1d1f] transition-colors"
+          >
+            <Menu size={18} />
+          </button>
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 bg-indigo-600 rounded-lg flex items-center justify-center text-white shrink-0">
-               <Sparkles size={14} fill="currentColor" />
+            <div className="w-6 h-6 rounded-xl bg-gradient-brand flex items-center justify-center">
+              <Sparkles size={12} fill="white" className="text-white" />
             </div>
-            <h1 className="text-lg font-black text-[#1d1d1f] tracking-tighter">LifeFlow</h1>
+            <span className="text-[15px] font-display font-black text-[#1d1d1f] tracking-tight">LifeFlow</span>
           </div>
         </div>
-        <div className="flex items-center space-x-3">
+
+        <div className="flex items-center gap-2">
           <NotificationCenter />
-          <div className="w-9 h-9 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 overflow-hidden shadow-sm">
-             <UserIcon size={18} />
+          <div className="w-8 h-8 rounded-2xl bg-[#f5f5f7] border border-black/[0.06] flex items-center justify-center text-[#6e6e73]">
+            <UserIcon size={15} />
           </div>
         </div>
       </header>
 
-      {/* Mobile Sidebar Overlay */}
+      {/* ── Mobile Menu Overlay ────────────────────────────────────────────── */}
       <AnimatePresence>
         {isMenuOpen && (
           <>
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
+              transition={{ duration: 0.18 }}
               onClick={() => setIsMenuOpen(false)}
-              className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm z-[60]"
+              className="fixed inset-0 bg-[#1d1d1f]/40 backdrop-blur-sm z-[60]"
             />
-            <motion.aside 
+            <motion.aside
               initial={{ x: '-100%' }}
               animate={{ x: 0 }}
               exit={{ x: '-100%' }}
-              transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-              className="fixed inset-y-0 left-0 w-[85%] bg-white z-[70] p-8 shadow-2xl flex flex-col"
+              transition={{ type: 'spring', damping: 28, stiffness: 280, mass: 0.8 }}
+              className="fixed inset-y-0 left-0 w-[82%] max-w-[320px] bg-white z-[70] flex flex-col shadow-[2px_0_40px_rgba(0,0,0,0.16)]"
             >
-              <div className="flex items-center justify-between mb-10">
-                <div className="flex items-center gap-2">
-                   <div className="w-8 h-8 bg-indigo-600 rounded-xl flex items-center justify-center text-white">
-                     <Sparkles size={18} fill="currentColor" />
-                   </div>
-                   <h1 className="text-xl font-black text-[#1d1d1f] tracking-tighter">LifeFlow</h1>
+              {/* Header */}
+              <div className="flex items-center justify-between px-6 py-5 border-b border-black/[0.055]">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-gradient-brand flex items-center justify-center">
+                    <Sparkles size={16} fill="white" className="text-white" />
+                  </div>
+                  <span className="text-lg font-display font-black text-[#1d1d1f] tracking-tight">LifeFlow</span>
                 </div>
-                <IconButton icon={X} onClick={() => setIsMenuOpen(false)} className="bg-gray-50" />
+                <button
+                  type="button"
+                  onClick={() => setIsMenuOpen(false)}
+                  className="w-8 h-8 rounded-full bg-[#f5f5f7] flex items-center justify-center text-[#6e6e73] hover:text-[#1d1d1f] transition-colors"
+                >
+                  <X size={15} />
+                </button>
               </div>
-              
-              <nav className="space-y-2 flex-1 overflow-y-auto">
-                 <p className="text-[10px] font-black text-gray-300 uppercase tracking-[0.2rem] mb-4 px-2">Nawigacja</p>
-                {navItems.map((item) => (
+
+              {/* Nav */}
+              <nav className="flex-1 px-4 py-3 space-y-0.5 overflow-y-auto scrollbar-hide">
+                <p className="text-overline px-2 mb-3">Nawigacja</p>
+                {navItems.map(item => (
                   <NavLink
                     key={item.id}
                     to={item.path}
                     onClick={() => setIsMenuOpen(false)}
-                    className={({ isActive }) => `
-                      flex items-center px-5 py-4 rounded-[1.25rem] transition-all
-                      ${isActive 
-                        ? 'bg-indigo-600 text-white font-extrabold shadow-xl shadow-indigo-100' 
-                        : 'text-gray-500 active:bg-gray-50'}
-                    `}
+                    className={({ isActive }) => cn(
+                      'flex items-center gap-3 px-3 py-3 rounded-2xl transition-all',
+                      isActive
+                        ? 'bg-[#1d1d1f] text-white'
+                        : 'text-[#6e6e73] hover:text-[#1d1d1f] active:bg-[#f5f5f7]'
+                    )}
                   >
-                    <item.icon size={22} className="mr-5" />
-                    <span className="text-lg tracking-tight">{item.label}</span>
+                    {({ isActive }) => (
+                      <>
+                        <div className={cn(
+                          'w-8 h-8 rounded-xl flex items-center justify-center shrink-0',
+                          isActive ? 'bg-white/15' : 'bg-[#f5f5f7]'
+                        )}>
+                          <item.icon size={17} className={isActive ? 'text-white' : 'text-[#6e6e73]'} />
+                        </div>
+                        <span className={cn(
+                          'text-[15px] font-semibold',
+                          isActive ? 'text-white' : 'text-[#1d1d1f]'
+                        )}>
+                          {item.label}
+                        </span>
+                      </>
+                    )}
                   </NavLink>
                 ))}
               </nav>
 
-              {/* User info and logout for mobile */}
-              <div className="border-t border-gray-100 pt-4 mt-4">
-                <div className="px-5 py-3 bg-gray-50 rounded-[1.25rem] mb-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-white shadow-sm flex items-center justify-center text-indigo-600 font-extrabold">
-                      <UserIcon size={20} />
-                    </div>
-                    <div className="overflow-hidden">
-                      <p className="text-sm font-black text-[#1d1d1f] tracking-tight truncate">{user?.displayName || user?.email || 'User'}</p>
-                      <p className="text-[9px] text-gray-400 font-bold">Premium Plan</p>
-                    </div>
+              {/* Footer */}
+              <div className="p-4 border-t border-black/[0.055] space-y-2">
+                <div className="px-3 py-2.5 flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-[#f5f5f7] flex items-center justify-center border border-black/[0.06]">
+                    <UserIcon size={17} className="text-[#6e6e73]" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[14px] font-semibold text-[#1d1d1f] truncate leading-none">
+                      {user?.displayName || user?.email || 'User'}
+                    </p>
+                    <p className="text-[10px] text-[#aeaeb2] mt-0.5">Pro Plan</p>
                   </div>
                 </div>
                 <button
-                  onClick={() => {
-                    handleLogout();
-                    setIsMenuOpen(false);
-                  }}
-                  className="w-full flex items-center px-5 py-4 rounded-[1.25rem] text-red-600 bg-red-50 font-extrabold transition-all active:bg-red-100"
+                  type="button"
+                  onClick={() => { handleLogout(); setIsMenuOpen(false); }}
+                  className="w-full flex items-center gap-3 px-3 py-3 rounded-2xl text-rose-600 bg-rose-50 hover:bg-rose-100 transition-colors"
                 >
-                  <LogOut size={22} className="mr-5" />
-                  <span className="text-lg tracking-tight">Wyloguj się</span>
+                  <LogOut size={17} />
+                  <span className="text-[15px] font-semibold">Wyloguj się</span>
                 </button>
               </div>
-
             </motion.aside>
           </>
         )}
       </AnimatePresence>
 
-      {/* Main Content */}
-      <main className={`flex-1 p-4 md:p-10 lg:p-16 mb-20 md:mb-0 overflow-auto bg-gray-50/50 ${deviceType === 'mobile' ? 'md:!p-6 !mb-20' : ''}`}>
-        <motion.div 
-          layout
-          initial={{ opacity: 0, y: 10 }}
+      {/* ── Main Content ──────────────────────────────────────────────────── */}
+      <main className={cn(
+        'flex-1 overflow-auto',
+        'p-5 md:p-8 lg:p-12',
+        'pb-28 md:pb-12',
+        deviceType === 'mobile' && '!pb-28'
+      )}>
+        <motion.div
+          key={location.pathname}
+          initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          className="max-w-[1200px] mx-auto"
+          transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+          className="max-w-[1160px] mx-auto"
         >
           <Outlet />
         </motion.div>
       </main>
 
-      {/* Mobile Bottom Navigation */}
-      <div className={`${deviceType === 'mobile' ? 'fixed' : 'md:hidden fixed'} bottom-6 left-6 right-6 z-40`}>
-        <nav className="bg-white/90 backdrop-blur-3xl border border-white/20 shadow-[0_20px_50px_rgba(0,0,0,0.15)] rounded-[2.5rem] flex justify-around p-2.5">
-          {navItems.slice(0, 5).map((item) => {
-            const isActive = location.pathname === item.path || (item.path !== '/direct' && location.pathname.startsWith(item.path));
-            return (
-              <NavLink
-                key={item.id}
-                to={item.path}
-                className={({ isActive }) => `
-                  flex flex-col items-center justify-center py-2 px-4 rounded-2xl transition-all relative
-                  ${isActive ? 'text-indigo-600' : 'text-gray-400'}
-                `}
-              >
-                <div className="relative z-10">
-                  <item.icon size={22} className={`${isActive ? 'scale-110' : ''} transition-transform duration-500`} />
+      {/* ── Mobile Bottom Navigation ──────────────────────────────────────── */}
+      <div className={cn(
+        'fixed bottom-3 left-3 right-3 z-40',
+        deviceType === 'mobile' ? 'block' : 'md:hidden block'
+      )}>
+        <nav className={cn(
+          'glass-card rounded-[1.5rem] flex justify-around py-2 px-1',
+        )}>
+          {navItems.slice(0, 5).map(item => (
+            <NavLink
+              key={item.id}
+              to={item.path}
+              className="flex-1"
+            >
+              {({ isActive }) => (
+                <div className={cn(
+                  'relative flex flex-col items-center justify-center py-2 px-1 rounded-[1rem] transition-all duration-200',
+                  isActive ? 'text-[#1d1d1f]' : 'text-[#aeaeb2]'
+                )}>
+                  {isActive && (
+                    <motion.div
+                      layoutId="tab-bg"
+                      className="absolute inset-0 bg-[#1d1d1f]/[0.06] rounded-[1rem]"
+                      transition={{ type: 'spring', bounce: 0.2, duration: 0.4 }}
+                    />
+                  )}
+                  <item.icon
+                    size={20}
+                    className={cn('relative z-10 transition-transform duration-200', isActive && 'scale-110')}
+                  />
+                  <span className={cn(
+                    'relative z-10 text-[9px] font-bold mt-1 leading-none tracking-wide',
+                    isActive ? 'text-[#1d1d1f]' : 'text-[#aeaeb2]'
+                  )}>
+                    {item.label}
+                  </span>
                 </div>
-                {isActive && (
-                  <motion.div 
-                    layoutId="bottom-nav-active"
-                    className="absolute inset-0 bg-indigo-50/80 rounded-2xl -z-0"
-                    transition={{ type: 'spring', bounce: 0.25, duration: 0.5 }}
-                  />
-                )}
-                {/* Visual Dot for active */}
-                {isActive && (
-                  <motion.div 
-                    layoutId="active-dot"
-                    className="absolute -bottom-0.5 w-1 h-1 bg-indigo-600 rounded-full"
-                  />
-                )}
-              </NavLink>
-            );
-          })}
-          <button 
+              )}
+            </NavLink>
+          ))}
+
+          <button
+            type="button"
             onClick={() => { hapticFeedback('light'); setIsMenuOpen(true); }}
-            className="flex flex-col items-center justify-center py-2 px-4 rounded-2xl text-gray-400 active:bg-gray-50 transition-colors"
+            className="flex-1 flex flex-col items-center justify-center py-2 px-1 rounded-[1rem] text-[#aeaeb2] transition-colors active:bg-[#f5f5f7]"
           >
-            <Menu size={22} />
+            <Menu size={20} />
+            <span className="text-[9px] font-bold mt-1 leading-none tracking-wide">Więcej</span>
           </button>
         </nav>
       </div>
     </div>
   );
 
+  /* ── Mobile sim wrapper ──────────────────────────────────────────────────── */
   if (deviceType === 'mobile') {
     return (
-      <div className="min-h-screen bg-[#0f0f12] flex items-center justify-center p-4">
-        {/* Hardware Frame Simulation - iPhone 15 Pro style */}
-        <div className="relative w-[385px] h-[820px] bg-white rounded-[4rem] shadow-[0_0_0_2px_#333,0_0_0_12px_#1a1a1c,0_0_0_15px_#2a2a2c,0_40px_120px_rgba(0,0,0,0.6)] overflow-hidden ring-1 ring-white/10">
-          {/* Dynamic Island / Notch */}
-          <div className="absolute top-2 left-1/2 -translate-x-1/2 w-32 h-8 bg-black rounded-full z-[110] flex items-center justify-center gap-2 group hover:w-48 transition-all duration-300 pointer-events-auto">
-            <div className="w-2.5 h-2.5 bg-[#1d1d1f] rounded-full" />
-            <div className="hidden group-hover:flex items-center gap-2 px-2">
-              <Zap size={12} className="text-amber-400 fill-amber-400" />
-              <div className="w-1 h-3 bg-white/20 rounded-full animate-pulse" />
-              <div className="w-1 h-4 bg-white/40 rounded-full animate-pulse delay-75" />
+      <div className="min-h-screen bg-[#0a0a0b] flex items-center justify-center p-4">
+        <div className={cn(
+          'relative w-[385px] h-[820px] overflow-hidden',
+          'bg-white rounded-[3.5rem]',
+          'shadow-[0_0_0_2px_#2a2a2c,0_0_0_10px_#141416,0_0_0_13px_#252527,0_50px_120px_rgba(0,0,0,0.7)]',
+          'ring-1 ring-white/5'
+        )}>
+          {/* Dynamic Island */}
+          <div className="absolute top-2.5 left-1/2 -translate-x-1/2 w-28 h-7 bg-black rounded-full z-[110]" />
+
+          {/* Status bar */}
+          <div className="absolute top-0 left-0 right-0 h-11 flex items-center justify-between px-9 z-[100] text-[#1d1d1f] pointer-events-none">
+            <span className="text-[14px] font-semibold">9:41</span>
+            <div className="flex gap-1.5 items-center">
+              <div className="flex gap-px items-end">
+                {[2, 3, 4, 4].map((h, i) => (
+                  <div key={i} className="w-0.5 bg-black rounded-full" style={{ height: h * 2 }} />
+                ))}
+              </div>
+              <div className="w-6 h-3 border border-black/20 rounded-[3px] relative flex items-center px-0.5">
+                <div className="h-1.5 w-4 bg-black/80 rounded-[1px]" />
+                <div className="absolute -right-0.5 w-0.5 h-1 bg-black/20 rounded-r-full" />
+              </div>
             </div>
           </div>
 
-          {/* Status Bar Mock */}
-          <div className="absolute top-0 left-0 right-0 h-11 bg-transparent flex items-center justify-between px-10 z-[100] text-[#1d1d1f] pointer-events-none">
-            <span className="text-[15px] font-bold">9:41</span>
-            <div className="flex gap-2 items-center">
-              <div className="flex gap-1">
-                <div className="w-0.5 h-2 bg-black rounded-full" />
-                <div className="w-0.5 h-2.5 bg-black rounded-full" />
-                <div className="w-0.5 h-3 bg-black rounded-full" />
-                <div className="w-0.5 h-3.5 bg-black rounded-full" />
-              </div>
-              <div className="w-6 h-3.5 border-2 border-black/20 rounded-[4px] relative flex items-center px-0.5">
-                <div className="h-full w-4/5 bg-black rounded-[1px]" />
-                <div className="absolute -right-1 w-0.5 h-1 bg-black/20 rounded-r-full" />
-              </div>
-            </div>
-          </div>
-          
-          {/* Dynamic Content */}
+          {/* Content */}
           <div className="w-full h-full relative overflow-y-auto scrollbar-hide pt-4">
             {content}
           </div>
 
-          {/* Home Indicator */}
-          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 w-36 h-1.5 bg-black/10 rounded-full z-[100] hover:bg-black/20 transition-colors" />
+          {/* Home indicator */}
+          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 w-32 h-1 bg-black/10 rounded-full z-[100]" />
         </div>
-        
-        {/* Switch back info */}
-        <div className="fixed top-8 left-8 flex flex-col gap-1 hidden md:flex">
-          <div className="flex items-center gap-2 text-white/40 mb-2">
-            <Smartphone size={16} />
-            <span className="text-[10px] font-black uppercase tracking-widest">LifeFlow Mobile Engine</span>
-          </div>
-          <div className="text-white/20 text-[10px] leading-relaxed">
-            • Obsługa Gestów PWA{"\n"}
-            • Symulacja Haptyki{"\n"}
-            • Widok 1:1 Natywny
+
+        {/* Label */}
+        <div className="fixed top-6 left-6 hidden md:flex flex-col gap-0.5">
+          <div className="flex items-center gap-2 text-white/30">
+            <Smartphone size={14} />
+            <span className="text-[9px] font-bold uppercase tracking-widest">LifeFlow Mobile</span>
           </div>
         </div>
       </div>

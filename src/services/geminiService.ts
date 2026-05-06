@@ -54,17 +54,86 @@ export async function estimateCalories(mealName: string): Promise<number> {
 }
 
 export async function brainstormTaskBreakdown(taskTitle: string): Promise<string[]> {
-  if (!process.env.GEMINI_API_KEY) return ["Krok 1", "Krok 2", "Krok 3"];
+  // Input validation and sanitization
+  if (!taskTitle || typeof taskTitle !== 'string') {
+    console.warn('⚠️ Invalid task title provided to brainstormTaskBreakdown');
+    return ["Zdefiniuj cel", "Zacznij działać", "Monitoruj postępy"];
+  }
+
+  const sanitizedTitle = taskTitle.trim().replace(/\s+/g, ' ');
   
-  const prompt = `Moje zadanie to: "${taskTitle}". Rozbij je na 3-5 konkretnych, krótkich kroków (podzadań). Zwróć tylko listę kroków oddzielonych średnikami.`;
-  
+  if (sanitizedTitle.length < 3) {
+    console.warn('⚠️ Task title too short:', sanitizedTitle);
+    return ["Uściśl cel", "Zbierz informacje", "Wykonaj zadanie"];
+  }
+
+  if (sanitizedTitle.length > 200) {
+    console.warn('⚠️ Task title too long:', sanitizedTitle.length);
+    return ["Podziel na mniejsze części", "Zacznij od pierwszej", "Kontynuuj krok po kroku"];
+  }
+
+  // Check API key
+  if (!process.env.GEMINI_API_KEY) {
+    console.log('🔑 No Gemini API key - using fallback steps');
+    return ["Zdefiniuj cel", "Zacznij działać", "Monitoruj postępy"];
+  }
+
+  // Enhanced prompt with better instructions
+  const prompt = `
+    Jesteś asystentem produktywności. Rozbij zadanie "${sanitizedTitle}" na 3-5 konkretnych, krótkich kroków.
+    
+    Zasady:
+    - Każdy krok powinien być zrozumiały i konkretny
+    - Użyj języka polskiego
+    - Każdy krok zakończ średnikiem
+    - Nie numeruj kroków
+    - Unikaj zbyt ogólnych sformułowań
+    
+    Przykład: "Zrobić zakupy"; Odpowiedź: "Sprawdź lodówkę;Zrób listę zakupów;Idź do sklepu;Spakuj zakupy";
+  `;
+
   try {
+    console.log(`🧠 Requesting task breakdown for: "${sanitizedTitle}"`);
+    
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: prompt,
     });
-    return response.text.split(';').map(s => s.trim().replace(/^[\d.-]+\s*/, ''));
-  } catch (e) {
+
+    if (!response.text) {
+      console.warn('⚠️ Empty response from Gemini API');
+      return ["Przygotuj plan", "Zacznij działać", "Dokończ zadanie"];
+    }
+
+    // Process and validate the response
+    const steps = response.text
+      .split(';')
+      .map(step => step.trim())
+      .filter(step => step.length > 0)
+      .map(step => step.replace(/^[\d.-]+\s*/, '')) // Remove numbering
+      .filter(step => step.length > 2 && step.length < 100) // Filter reasonable lengths
+      .slice(0, 5); // Limit to 5 steps
+
+    if (steps.length === 0) {
+      console.warn('⚠️ No valid steps generated from response:', response.text);
+      return ["Przygotuj plan", "Zacznij działać", "Dokończ zadanie"];
+    }
+
+    console.log(`✅ Generated ${steps.length} steps for task: "${sanitizedTitle}"`);
+    return steps;
+
+  } catch (error) {
+    console.error('❌ Error in brainstormTaskBreakdown:', error);
+    
+    // Categorized fallback based on error type
+    if (error instanceof Error) {
+      if (error.message.includes('quota') || error.message.includes('limit')) {
+        return ["Oszczędzaj zasoby", "Zrób to ręcznie", "Podziel na części"];
+      } else if (error.message.includes('network') || error.message.includes('timeout')) {
+        return ["Sprawdź połączenie", "Zacznij od razu", "Działaj offline"];
+      }
+    }
+    
     return ["Przygotuj plan", "Zacznij działać", "Dokończ zadanie"];
   }
 }

@@ -5,7 +5,7 @@ import {
   collection, addDoc, onSnapshot, query, deleteDoc, doc, updateDoc, serverTimestamp, orderBy, where, writeBatch
 } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
-import { Plus, ShoppingCart, Trash2, CheckCircle2, ShoppingBag, RefreshCw, X, CheckCheck } from 'lucide-react';
+import { Plus, ShoppingCart, Trash2, CheckCircle2, ShoppingBag, RefreshCw, X, CheckCheck, TrendingUp, Calculator, Barcode, Filter, Search, Star } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { handleFirestoreError, OperationType } from '../lib/db';
 import { hapticFeedback, cn } from '../lib/utils';
@@ -34,6 +34,10 @@ export default function Shopping() {
   const [selectedCat, setSelectedCat] = useState('inne');
   const [isAdding, setIsAdding] = useState(false);
   const [partnerUid, setPartnerUid] = useState<string | null>(null);
+  const [priceHistory, setPriceHistory] = useState<any[]>([]);
+  const [smartSuggestions, setSmartSuggestions] = useState<string[]>([]);
+  const [showAnalytics, setShowAnalytics] = useState(false);
+  const [budgetLimit, setBudgetLimit] = useState(500);
   const { showToast } = useToast();
   const { isOffline } = useOffline();
 

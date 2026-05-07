@@ -1,11 +1,16 @@
 import React, { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { Plus, NotebookPen, ListTodo, ShoppingBag, Wallet, X, Sparkles, Wand2 } from 'lucide-react';
+import { Plus, NotebookPen, ListTodo, ShoppingBag, Wallet, X, Sparkles, Wand2, Settings, PlusCircle, Heart, Star, Zap, Target } from 'lucide-react';
 import { hapticFeedback } from '../lib/utils';
 
 export default function QuickActions() {
   const [isOpen, setIsOpen] = useState(false);
+  const [customActions, setCustomActions] = useState([
+    { icon: Heart, color: 'bg-rose-500', label: 'Nawyk', path: '/habits' },
+    { icon: Star, color: 'bg-yellow-500', label: 'Cel', path: '/goals' },
+  ]);
+  const [showCustomize, setShowCustomize] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   

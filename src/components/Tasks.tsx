@@ -6,7 +6,7 @@ import {
   serverTimestamp, orderBy, limit
 } from 'firebase/firestore';
 import React, { useEffect, useState, useMemo } from 'react';
-import { Plus, CheckCircle2, Circle, Trash2, Flag, Search, Clock, BrainCircuit, Loader2, Tag, CalendarDays, X, Check } from 'lucide-react';
+import { Plus, CheckCircle2, Circle, Trash2, Flag, Search, Clock, BrainCircuit, Loader2, Tag, CalendarDays, X, Check, Filter, TrendingUp, AlertCircle, Zap, Target, ListFilter } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { handleFirestoreError, OperationType } from '../lib/db';
 import { hapticFeedback, cn } from '../lib/utils';
@@ -48,6 +48,12 @@ export default function Tasks() {
   const [tasks, setTasks] = useState<any[]>([]);
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [priority, setPriority] = useState<Priority>('medium');
+  const [category, setCategory] = useState('all');
+  const [sortBy, setSortBy] = useState<'date' | 'priority' | 'name'>('date');
+  const [showAI, setShowAI] = useState(false);
+  const [aiSuggestion, setAiSuggestion] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showCompleted, setShowCompleted] = useState(false);
   const [newCategory, setNewCategory] = useState('other');
   const [newDueDate, setNewDueDate] = useState('');
   const [isAdding, setIsAdding] = useState(false);

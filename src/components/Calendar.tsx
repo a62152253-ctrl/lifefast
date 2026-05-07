@@ -5,7 +5,8 @@ import {
   collection, onSnapshot, query, where, doc, setDoc, deleteDoc, updateDoc, serverTimestamp
 } from 'firebase/firestore';
 import {
-  ChevronLeft, ChevronRight, Plus, Clock, Trash2, Pencil, Check, X, AlignLeft
+  ChevronLeft, ChevronRight, Plus, Clock, Trash2, Pencil, Check, X, AlignLeft,
+  CalendarDays, List, Grid3x3, Eye, Bell, Calendar
 } from 'lucide-react';
 import {
   format, addMonths, subMonths, startOfMonth, endOfMonth,
@@ -47,6 +48,8 @@ export default function Calendar() {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [events, setEvents] = useState<any[]>([]);
   const [isAdding, setIsAdding] = useState(false);
+  const [viewMode, setViewMode] = useState<'month' | 'week' | 'list'>('month');
+  const [showNotifications, setShowNotifications] = useState(true);
   const { showToast } = useToast();
   const { isOffline } = useOffline();
   const [editingEvent, setEditingEvent] = useState<any>(null);

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, Pause, RotateCcw, Timer, Zap, Coffee, Settings } from 'lucide-react';
+import { Play, Pause, RotateCcw, Timer, Zap, Coffee, Settings, BarChart3, Trophy, Target, Clock, Calendar, TrendingUp } from 'lucide-react';
 import { Card, Button, ProgressCircle } from './CommonUI';
 import { hapticFeedback } from '../lib/utils';
 import { useToast } from '../context/ToastContext';
@@ -8,6 +8,9 @@ export default function FocusTimer() {
   const [timeLeft, setTimeLeft] = useState(25 * 60);
   const [isActive, setIsActive] = useState(false);
   const [mode, setMode] = useState<'work' | 'break'>('work');
+  const [sessions, setSessions] = useState<any[]>([]);
+  const [todayStats, setTodayStats] = useState({ workTime: 0, breakTime: 0, sessions: 0 });
+  const [showStats, setShowStats] = useState(false);
   const timerRef = useRef<any>(null);
   const { showToast } = useToast();
 

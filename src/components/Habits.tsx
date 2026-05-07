@@ -5,7 +5,7 @@ import {
   collection, addDoc, onSnapshot, query, where, deleteDoc, doc, updateDoc, serverTimestamp,
 } from 'firebase/firestore';
 import React, { useEffect, useState, useMemo } from 'react';
-import { Plus, Zap, CheckCircle2, Trash2, Trophy, Sparkles, TrendingUp, BrainCircuit, Loader2, Flame, Target } from 'lucide-react';
+import { Plus, Zap, CheckCircle2, Trash2, Trophy, Sparkles, TrendingUp, BrainCircuit, Loader2, Flame, Target, Bell, Calendar, Award, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { handleFirestoreError, OperationType } from '../lib/db';
 import { format, startOfToday, subDays, isSameDay } from 'date-fns';
@@ -50,7 +50,10 @@ export default function Habits() {
   const [newName, setNewName] = useState('');
   const [newEmoji, setNewEmoji] = useState('⚡');
   const [newCategory, setNewCategory] = useState('health');
-  const [newTarget, setNewTarget] = useState(7);
+  const [newTarget, setNewTarget] = useState(21);
+  const [showNotifications, setShowNotifications] = useState(true);
+  const [bestStreak, setBestStreak] = useState(0);
+  const [coachingMessage, setCoachingMessage] = useState('');
   const [coachingText, setCoachingText] = useState<Record<string, string>>({});
   const [loadingHabitId, setLoadingHabitId] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
@@ -72,6 +75,49 @@ export default function Habits() {
     return onSnapshot(q, snap => setHabits(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
       err => handleFirestoreError(err, OperationType.LIST, 'habits'));
   }, [user]);
+
+  useEffect(() => {
+    const maxStreak = Math.max(...habits.map(h => h.streak || 0), 0);
+    setBestStreak(maxStreak);
+  }, [habits]);
+
+  useEffect(() => {
+    if (habits.length > 0) {
+      const todayHabits = habits.filter(h => !h.completedToday);
+      if (todayHabits.length > 0) {
+        setCoachingMessage(`Masz jeszcze ${todayHabits.length} nawyków do zrobienia dziś! 💪`);
+      } else {
+        setCoachingMessage('Świetnie! Wszystkie nawyki na dziś zrobione! 🎉');
+      }
+    }
+  }, [habits]);
+
+  const handleHabitComplete = async (habitId: string) => {
+    try {
+      const habit = habits.find(h => h.id === habitId);
+      if (!habit || habit.completedToday) return;
+
+      await updateDoc(doc(db, 'habits', habitId), {
+        completedToday: true,
+        streak: (habit.streak || 0) + 1,
+        completions: {
+          ...habit.completions,
+          [format(new Date(), 'yyyy-MM-dd')]: true
+        }
+      });
+
+      hapticFeedback('medium');
+      showToast('Nawyk zakończony! 🔥', 'success');
+
+      // Get AI coaching
+      const coaching = await getHabitCoaching(habit.name, (habit.streak || 0) + 1);
+      if (coaching) {
+        setTimeout(() => showToast(coaching, 'info'), 1000);
+      }
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, 'habits');
+    }
+  };
 
   const addHabit = async (e?: React.FormEvent) => {
     e?.preventDefault();

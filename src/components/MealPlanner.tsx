@@ -4,7 +4,7 @@ import { auth, db } from '../lib/firebase';
 import {
   collection, addDoc, onSnapshot, query, where, deleteDoc, doc, serverTimestamp
 } from 'firebase/firestore';
-import { Utensils, Plus, ChefHat, ShoppingCart, Clock, Sparkles, BrainCircuit, X, Loader2, Flame, Target } from 'lucide-react';
+import { Utensils, Plus, ChefHat, ShoppingCart, Clock, Sparkles, BrainCircuit, X, Loader2, Flame, Target, TrendingUp, BarChart3, Apple, Coffee } from 'lucide-react';
 import { Card, Button, PageHeader, Badge, Modal } from './CommonUI';
 import { motion, AnimatePresence } from 'motion/react';
 import { estimateCalories } from '../services/geminiService';
@@ -38,6 +38,10 @@ export default function MealPlanner() {
   const [mealName, setMealName] = useState('');
   const [kcal, setKcal] = useState('');
   const [isEstimating, setIsEstimating] = useState(false);
+  const [weeklyStats, setWeeklyStats] = useState<any>(null);
+  const [nutritionGoals, setNutritionGoals] = useState({ calories: 2000, protein: 150, carbs: 250, fat: 65 });
+  const [aiSuggestions, setAiSuggestions] = useState<string[]>([]);
+  const [showNutrition, setShowNutrition] = useState(false);
 
   const selectedDay = DAYS_FULL[selectedDayIdx];
 

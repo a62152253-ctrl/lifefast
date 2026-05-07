@@ -134,8 +134,8 @@ export default function App() {
     <DeviceProvider>
       <ThemeProvider>
         <LanguageProvider>
-          <CustomNavProvider>
-            <ToastProvider>
+          <ToastProvider>
+            <CustomNavProvider>
               <OfflineProvider>
                 <Router>
               <Suspense fallback={<div>Loading...</div>}>
@@ -148,8 +148,8 @@ export default function App() {
 
               {/* App routes */}
               <Route path="/" element={<ProtectedRoutes />}>
-                {appRoutes.map((route, i) => (
-                  <Route key={i} path={route.path} element={route.element} />
+                {appRoutes.map((route) => (
+                  <Route path={route.path} element={route.element} />
                 ))}
               </Route>
 
@@ -160,9 +160,9 @@ export default function App() {
           </Suspense>
         </Router>
         </OfflineProvider>
-        </ToastProvider>
-        </CustomNavProvider>
-      </LanguageProvider>
+            </CustomNavProvider>
+          </ToastProvider>
+        </LanguageProvider>
       </ThemeProvider>
     </DeviceProvider>
   );

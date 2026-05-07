@@ -4,7 +4,7 @@ import { auth, db } from '../lib/firebase';
 import {
   collection, addDoc, onSnapshot, query, where, orderBy, limit, serverTimestamp
 } from 'firebase/firestore';
-import { Smile, Frown, Meh, SmilePlus, Angry, Heart, MessageSquare, ChevronRight, TrendingUp } from 'lucide-react';
+import { Smile, Frown, Meh, SmilePlus, Angry, Heart, MessageSquare, ChevronRight, TrendingUp, BrainCircuit, Calendar, BarChart3, Lightbulb, Activity } from 'lucide-react';
 import { Card, Button, Badge, PageHeader } from './CommonUI';
 import { motion, AnimatePresence } from 'motion/react';
 import { hapticFeedback, cn } from '../lib/utils';
@@ -39,6 +39,9 @@ export default function MoodTracker({ isMini = false }: { isMini?: boolean }) {
   const [note, setNote] = useState('');
   const [history, setHistory] = useState<any[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+  const [moodPatterns, setMoodPatterns] = useState<any>(null);
+  const [aiInsight, setAiInsight] = useState('');
+  const [showAnalytics, setShowAnalytics] = useState(false);
 
   useEffect(() => {
     if (!user) return;

@@ -1,4 +1,4 @@
-import { initializeApp } from 'firebase/app';
+import { initializeApp, getApp } from 'firebase/app';
 import { 
   getAuth, 
   GoogleAuthProvider, 
@@ -17,22 +17,27 @@ import firebaseConfig from '../../firebase-applet-config.json';
 
 let app;
 try {
-  app = initializeApp(firebaseConfig);
-  console.log('Firebase initialized successfully with project:', firebaseConfig.projectId);
-  
-  // Check if we're in development mode and use emulator if needed
-  if (process.env.NODE_ENV === 'development') {
-    console.log('🔧 Development mode detected - checking Firebase rules...');
-  }
+  app = getApp();
+  console.log('Using existing Firebase app instance');
 } catch (error) {
-  console.error('Firebase initialization error:', error);
-  // Create a minimal app for development
-  app = initializeApp({
-    apiKey: "AIzaSyDummyKeyForDevelopment",
-    authDomain: "lifeflow-demo.firebaseapp.com",
-    projectId: "lifeflow-demo"
-  });
-  console.warn('Using demo Firebase configuration');
+  try {
+    app = initializeApp(firebaseConfig);
+    console.log('Firebase initialized successfully with project:', firebaseConfig.projectId);
+  } catch (initError: any) {
+    console.error('Firebase initialization error:', initError);
+    // Create a minimal app for development
+    app = initializeApp({
+      apiKey: "AIzaSyDummyKeyForDevelopment",
+      authDomain: "lifeflow-demo.firebaseapp.com",
+      projectId: "lifeflow-demo"
+    }, 'demo-app');
+    console.warn('Using demo Firebase configuration');
+  }
+}
+
+// Check if we're in development mode and use emulator if needed
+if (process.env.NODE_ENV === 'development') {
+  console.log('🔧 Development mode detected - checking Firebase rules...');
 }
 export const auth = getAuth(app);
 export const db = getFirestore(app, firebaseConfig?.firestoreDatabaseId || 'lifeflow-demo');

@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { NotificationManager } from './NotificationManager';
 import NotificationCenter from './NotificationCenter';
 import QuickActions from './QuickActions';
+import AIChat from './AIChat';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth } from '../lib/firebase';
 import { signOut } from 'firebase/auth';
@@ -37,6 +38,7 @@ export default function Layout() {
     )}>
       <NotificationManager />
       <QuickActions />
+      <AIChat />
 
       {/* ── Desktop Sidebar ─────────────────────────────────────────────── */}
       <aside className={cn(

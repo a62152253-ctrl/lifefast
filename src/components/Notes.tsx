@@ -5,7 +5,7 @@ import {
   collection, addDoc, onSnapshot, query, where, deleteDoc, doc, updateDoc, serverTimestamp, orderBy
 } from 'firebase/firestore';
 import React, { useEffect, useState, useMemo } from 'react';
-import { Plus, Trash2, FileText, Search, BookOpen, Clock, Sparkles, BrainCircuit, Loader2, Pin, PinOff, Tag, X, SortAsc, SortDesc } from 'lucide-react';
+import { Plus, Trash2, FileText, Search, BookOpen, Clock, Sparkles, BrainCircuit, Loader2, Pin, PinOff, Tag, X, SortAsc, SortDesc, Bold, Italic, List, Link, Image, Code, Highlight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { handleFirestoreError, OperationType } from '../lib/db';
 import { hapticFeedback, cn } from '../lib/utils';
@@ -48,6 +48,13 @@ export default function Notes() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
+  const [selectedColor, setSelectedColor] = useState('yellow');
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [isPinned, setIsPinned] = useState(false);
+  const [showAI, setShowAI] = useState(false);
+  const [aiSummary, setAiSummary] = useState('');
+  const [isRichText, setIsRichText] = useState(false);
+  const [format, setFormat] = useState('markdown');
   const [noteColor, setNoteColor] = useState('white');
   const [noteTags, setNoteTags] = useState<string[]>([]);
   const [search, setSearch] = useState('');

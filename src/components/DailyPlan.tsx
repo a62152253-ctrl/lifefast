@@ -14,7 +14,7 @@ import {
   orderBy
 } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
-import { Plus, Clock, Trash2, Calendar as CalendarIcon, Coffee, Briefcase, Moon, Sun, ChevronLeft, ChevronRight, CheckCircle2, Circle } from 'lucide-react';
+import { Plus, Clock, Trash2, Calendar as CalendarIcon, Coffee, Briefcase, Moon, Sun, ChevronLeft, ChevronRight, CheckCircle2, Circle, BrainCircuit, Zap, Target, BarChart3, TrendingUp, Lightbulb } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { handleFirestoreError, OperationType } from '../lib/db';
 import { format, startOfToday, addDays, subDays, isSameDay } from 'date-fns';
@@ -29,6 +29,10 @@ export default function DailyPlan() {
   const [activity, setActivity] = useState('');
   const [selectedDate, setSelectedDate] = useState(startOfToday());
   const [partnerUid, setPartnerUid] = useState<string | null>(null);
+  const [aiSuggestions, setAiSuggestions] = useState<string[]>([]);
+  const [optimalSchedule, setOptimalSchedule] = useState<any>(null);
+  const [showOptimization, setShowOptimization] = useState(false);
+  const [productivityScore, setProductivityScore] = useState(0);
 
   const dateStr = format(selectedDate, 'yyyy-MM-dd');
 

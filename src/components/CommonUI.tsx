@@ -211,14 +211,21 @@ export const Button = ({
     glass:     'glass text-[#1d1d1f] hover:bg-white/90 active:scale-[0.97] shadow-sm',
   };
 
+  const handleClick = (e: any) => {
+    // Instant visual feedback
+    if (onClick) onClick(e);
+    // Debounced haptic to avoid blocking
+    setTimeout(() => hapticFeedback('light'), 0);
+  };
+
   return (
     <button
       type={type}
-      onClick={e => { hapticFeedback('light'); if (onClick) onClick(e); }}
+      onClick={handleClick}
       disabled={disabled}
       className={cn(
         'px-6 py-3.5 rounded-2xl font-black text-[11px] uppercase tracking-widest',
-        'transition-all duration-150 ease-out',
+        'transition-all duration-100 ease-out', // Faster transition
         'disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none',
         'flex items-center justify-center gap-2 leading-none whitespace-nowrap',
         variants[variant],
@@ -236,24 +243,52 @@ export const IconButton = ({
   icon: Icon,
   onClick,
   className = '',
+  title,
+  size = 'md',
+  disabled = false,
+  children,
 }: {
-  icon: any;
+  icon?: any;
   onClick?: (e: React.MouseEvent) => void;
   className?: string;
-}) => (
-  <button
-    type="button"
-    onClick={e => { hapticFeedback('light'); if (onClick) onClick(e); }}
-    className={cn(
-      'w-10 h-10 rounded-2xl flex items-center justify-center shrink-0',
-      'text-[#6e6e73] hover:text-[#1d1d1f] hover:bg-[#f5f5f7]',
-      'transition-all duration-150 active:scale-90',
-      className,
-    )}
-  >
-    <Icon size={18} />
-  </button>
-);
+  title?: string;
+  size?: 'sm' | 'md' | 'lg';
+  disabled?: boolean;
+  children?: React.ReactNode;
+}) => {
+  const sizeClasses = {
+    sm: 'w-8 h-8',
+    md: 'w-10 h-10',
+    lg: 'w-12 h-12'
+  };
+
+  const handleClick = (e: React.MouseEvent) => {
+    // Instant visual feedback - execute onClick immediately
+    if (onClick) onClick(e);
+    // Debounced haptic to avoid blocking UI thread
+    setTimeout(() => hapticFeedback('light'), 0);
+  };
+
+  return (
+    <button
+      type="button"
+      title={title}
+      disabled={disabled}
+      onClick={handleClick}
+      className={cn(
+        sizeClasses[size],
+        'rounded-2xl flex items-center justify-center shrink-0',
+        'text-[#6e6e73] hover:text-[#1d1d1f] hover:bg-[#f5f5f7]',
+        'transition-all duration-100 active:scale-95', // Faster transition
+        disabled && 'opacity-50 cursor-not-allowed',
+        className,
+      )}
+    >
+      {Icon && <Icon size={18} />}
+      {children}
+    </button>
+  );
+};
 
 // ─── Modal ────────────────────────────────────────────────────────────────────
 
@@ -374,23 +409,33 @@ export const FloatingActionButton = ({
 }: {
   icon: any;
   onClick?: () => void;
-}) => (
-  <motion.button
-    type="button"
-    whileHover={{ scale: 1.08 }}
-    whileTap={{ scale: 0.92 }}
-    onClick={() => { hapticFeedback('medium'); if (onClick) onClick(); }}
-    className={cn(
-      'fixed bottom-28 right-5 md:bottom-8 md:right-8 z-40',
-      'w-14 h-14 rounded-[1.25rem] flex items-center justify-center',
-      'bg-[#1d1d1f] text-white',
-      'shadow-[0_8px_24px_rgba(0,0,0,0.28),0_4px_8px_rgba(0,0,0,0.16)]',
-      'transition-shadow duration-200',
-    )}
-  >
-    <Icon size={24} />
-  </motion.button>
-);
+}) => {
+  const handleClick = () => {
+    // Instant visual feedback
+    if (onClick) onClick();
+    // Debounced haptic to avoid blocking
+    setTimeout(() => hapticFeedback('medium'), 0);
+  };
+
+  return (
+    <motion.button
+      type="button"
+      whileHover={{ scale: 1.05 }} // Reduced scale for better performance
+      whileTap={{ scale: 0.95 }}  // Faster tap response
+      transition={{ duration: 0.1 }}    // Faster animation
+      onClick={handleClick}
+      className={cn(
+        'fixed bottom-28 right-5 md:bottom-8 md:right-8 z-40',
+        'w-14 h-14 rounded-[1.25rem] flex items-center justify-center',
+        'bg-[#1d1d1f] text-white',
+        'shadow-[0_8px_24px_rgba(0,0,0,0.28),0_4px_8px_rgba(0,0,0,0.16)]',
+        'transition-all duration-100', // Faster transition
+      )}
+    >
+      <Icon size={24} />
+    </motion.button>
+  );
+};
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
 

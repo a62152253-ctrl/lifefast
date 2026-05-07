@@ -1,4 +1,5 @@
 import { useAuthState } from 'react-firebase-hooks/auth';
+import { useMemo } from 'react';
 import { auth, db } from '../lib/firebase';
 import { Button, Card, FloatingActionButton, IconButton, PageHeader, Badge, Modal } from './CommonUI';
 import { 
@@ -15,7 +16,7 @@ import {
   limit
 } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
-import { Plus, Wallet, Trash2, Edit2, TrendingUp, TrendingDown, DollarSign, ReceiptText, PieChart, ArrowUpRight, ArrowDownRight, Search, Filter } from 'lucide-react';
+import { Plus, Wallet, Trash2, Edit2, TrendingUp, TrendingDown, DollarSign, ReceiptText, PieChart, ArrowUpRight, ArrowDownRight, Search, Filter, BarChart3, Target, AlertCircle, PiggyBank } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { handleFirestoreError, OperationType } from '../lib/db';
 import { hapticFeedback, cn } from '../lib/utils';
@@ -33,6 +34,8 @@ export default function Budget() {
   const [type, setType] = useState<'income' | 'expense'>('expense');
   const [category, setCategory] = useState('Inne');
   const [editingTransaction, setEditingTransaction] = useState<any>(null);
+  const [showAnalytics, setShowAnalytics] = useState(false);
+  const [monthlyLimit, setMonthlyLimit] = useState(3000);
   const { showToast } = useToast();
   const { isOffline } = useOffline();
 
@@ -44,6 +47,29 @@ export default function Budget() {
     { name: 'Zdrowie', icon: '🏥' },
     { name: 'Inne', icon: '📦' }
   ];
+
+  // Calculate analytics
+  const analytics = useMemo(() => {
+    const income = transactions.filter(t => t.type === 'income').reduce((sum, t) => sum + (t.amount || 0), 0);
+    const expenses = transactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + (t.amount || 0), 0);
+    const balance = income - expenses;
+    const spendingByCategory = CATEGORIES.reduce((acc, cat) => {
+      acc[cat.name] = transactions
+        .filter(t => t.type === 'expense' && t.category === cat.name)
+        .reduce((sum, t) => sum + (t.amount || 0), 0);
+      return acc;
+    }, {} as Record<string, number>);
+    
+    return {
+      income,
+      expenses,
+      balance,
+      spendingByCategory,
+      savingsRate: income > 0 ? ((income - expenses) / income * 100) : 0,
+      dailyAverage: expenses / 30,
+      remainingBudget: monthlyLimit - expenses
+    };
+  }, [transactions, monthlyLimit]);
 
   useEffect(() => {
     // Early return if user is not available
@@ -337,8 +363,39 @@ export default function Budget() {
     <div className="space-y-12 pb-40">
       <PageHeader 
         title="Skarbiec" 
-        subtitle="Analiza przepływów i zarządzanie kapitałem."
       />
+
+      {/* Analytics Summary */}
+      <div className="grid grid-cols-4 gap-4 mb-6">
+        <div className="bg-white rounded-xl p-4 border border-gray-100">
+          <div className="flex items-center justify-between mb-2">
+            <TrendingUp className="w-4 h-4 text-green-500" />
+            <span className="text-xs text-gray-400">Przychody</span>
+          </div>
+          <div className="text-xl font-bold text-gray-900">{incomeTotal.toFixed(2)} zł</div>
+        </div>
+        <div className="bg-white rounded-xl p-4 border border-gray-100">
+          <div className="flex items-center justify-between mb-2">
+            <TrendingDown className="w-4 h-4 text-red-500" />
+            <span className="text-xs text-gray-400">Wydatki</span>
+          </div>
+          <div className="text-xl font-bold text-gray-900">{expenseTotal.toFixed(2)} zł</div>
+        </div>
+        <div className="bg-white rounded-xl p-4 border border-gray-100">
+          <div className="flex items-center justify-between mb-2">
+            <PiggyBank className="w-4 h-4 text-blue-500" />
+            <span className="text-xs text-gray-400">Oszczędności</span>
+          </div>
+          <div className="text-xl font-bold text-gray-900">{total.toFixed(2)} zł</div>
+        </div>
+        <div className="bg-white rounded-xl p-4 border border-gray-100">
+          <div className="flex items-center justify-between mb-2">
+            <Target className="w-4 h-4 text-purple-500" />
+            <span className="text-xs text-gray-400">Budżet</span>
+          </div>
+          <div className="text-xl font-bold text-gray-900">{(incomeTotal - expenseTotal).toFixed(2)} zł</div>
+        </div>
+      </div>
 
       {/* Hero Balance Card */}
       <Card className="bg-[#1d1d1f] text-white border-none p-8 md:p-12 relative overflow-hidden shadow-2xl group">

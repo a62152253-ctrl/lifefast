@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, UserPlus, Shield, Share2, Mail, Check, X, AlertCircle, Loader2 } from 'lucide-react';
+import { Users, UserPlus, Shield, Share2, Mail, Check, X, AlertCircle, Loader2, Video, MessageCircle, Calendar, Clock, Star, Zap } from 'lucide-react';
 import { Card, Button, Badge, IconButton } from './CommonUI';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '../lib/firebase';
@@ -16,6 +16,10 @@ export default function PartnerManager() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [incomingInvites, setIncomingInvites] = useState<Invite[]>([]);
   const [outgoingInvites, setOutgoingInvites] = useState<Invite[]>([]);
+  const [sharedGoals, setSharedGoals] = useState<any[]>([]);
+  const [sharedTasks, setSharedTasks] = useState<any[]>([]);
+  const [showShared, setShowShared] = useState(false);
+  const [collabHistory, setCollabHistory] = useState<any[]>([]);
 
   useEffect(() => {
     if (!user) return;

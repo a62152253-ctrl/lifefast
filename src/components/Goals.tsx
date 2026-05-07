@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { motion, AnimatePresence } from 'motion/react';
 import {
@@ -9,7 +9,8 @@ import { format } from 'date-fns';
 import { pl } from 'date-fns/locale';
 import {
   Target, Plus, Trash2, CheckCircle2, Edit3,
-  Trophy, TrendingUp, Flame,
+  Trophy, TrendingUp, Flame, Award, Star, Zap, Target as TargetIcon,
+  Calendar, Clock, Flag, Milestone
 } from 'lucide-react';
 import { auth, db } from '../lib/firebase';
 import { PageHeader, Button, Modal, FloatingActionButton } from './CommonUI';
@@ -39,6 +40,38 @@ export default function Goals() {
   const [category, setCategory]     = useState('personal');
   const [targetDate, setTargetDate] = useState('');
   const [progress, setProgress]     = useState(0);
+  const [motivationQuotes, setMotivationQuotes] = useState<string[]>([]);
+  const [dailyTip, setDailyTip] = useState('');
+  const [showStats, setShowStats] = useState(false);
+
+  // Motivation system
+  useEffect(() => {
+    const quotes = [
+      "Każdy krok przybliża Cię do celu! 🎯",
+      "Dyscyplina to klucz do sukcesu 💪",
+      "Jesteś silniejszy niż myślisz! 🌟",
+      "Dziś jest dzień na zwycięstwo! 🏆",
+      "Nigdy się nie poddawaj! 🚀"
+    ];
+    setMotivationQuotes(quotes);
+    setDailyTip(quotes[Math.floor(Math.random() * quotes.length)]);
+  }, []);
+
+  // Calculate statistics
+  const stats = useMemo(() => {
+    const totalGoals = goals.length;
+    const completedGoals = goals.filter(g => g.progress >= 100).length;
+    const inProgressGoals = goals.filter(g => g.progress > 0 && g.progress < 100).length;
+    const avgProgress = totalGoals > 0 ? goals.reduce((sum, g) => sum + (g.progress || 0), 0) / totalGoals : 0;
+    
+    return {
+      total: totalGoals,
+      completed: completedGoals,
+      inProgress: inProgressGoals,
+      avgProgress: Math.round(avgProgress),
+      completionRate: totalGoals > 0 ? Math.round((completedGoals / totalGoals) * 100) : 0
+    };
+  }, [goals]);
 
   useEffect(() => {
     if (!user) return;

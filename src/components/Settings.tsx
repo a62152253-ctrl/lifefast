@@ -1,25 +1,46 @@
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, logout, db } from '../lib/firebase';
+import { updateProfile } from 'firebase/auth';
 import { Card, Button, PageHeader, Badge, IconButton, Modal } from './CommonUI';
-import { User, LogOut, Bell, Shield, Paintbrush, Globe, Info, ChevronRight, CreditCard, Sparkles, Share2, Mail, Check, X, Users, RefreshCw, Sun, Moon, Download, FileJson, FileSpreadsheet, BrainCircuit } from 'lucide-react';
+import { User, LogOut, Bell, Shield, Paintbrush, Globe, Info, ChevronRight, CreditCard, Sparkles, Share2, Mail, Check, X, Users, RefreshCw, Sun, Moon, Download, FileJson, FileSpreadsheet, BrainCircuit, Camera, Pencil } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, onSnapshot, doc, getDocs } from 'firebase/firestore';
-import { sendInvite, acceptInvite, rejectInvite, disconnectPartner, updateUserSettings, DEFAULT_SETTINGS, Invite, UserProfile } from '../lib/sharing';
+import { collection, query, where, onSnapshot, doc, getDocs, setDoc, serverTimestamp } from 'firebase/firestore';
+import { sendInvite, acceptInvite, rejectInvite, disconnectPartner, updateUserSettings, DEFAULT_SETTINGS, Invite } from '../lib/sharing';
 import { useDevice } from '../context/DeviceContext';
 import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
 import { exportToJSON, exportToCSV } from '../lib/export';
 import CustomNavManager from './CustomNavManager';
 
+const AVATAR_EMOJIS = ['😎','🦊','🐺','🦋','🌟','⚡','🔥','🌊','🍀','🦅','🌙','🎯','💎','🚀','🎨','👑','🐉','🦁'];
+const AVATAR_COLORS = [
+  { id: 'indigo',  cls: 'bg-indigo-500',  label: 'Indygo' },
+  { id: 'violet',  cls: 'bg-violet-500',  label: 'Fiolet' },
+  { id: 'rose',    cls: 'bg-rose-500',    label: 'Róż' },
+  { id: 'amber',   cls: 'bg-amber-500',   label: 'Bursztyn' },
+  { id: 'emerald', cls: 'bg-emerald-500', label: 'Szmaragd' },
+  { id: 'sky',     cls: 'bg-sky-500',     label: 'Błękit' },
+  { id: 'orange',  cls: 'bg-orange-500',  label: 'Pomarańcz' },
+  { id: 'slate',   cls: 'bg-slate-700',   label: 'Grafit' },
+];
+
 export default function Settings() {
   const [user] = useAuthState(auth);
   const [sharingEmail, setSharingEmail] = useState('');
-  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [profile, setProfile] = useState<any | null>(null);
   const [sentInvites, setSentInvites] = useState<Invite[]>([]);
   const [receivedInvites, setReceivedInvites] = useState<Invite[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  
+
+  // Profile editor state
+  const [showProfile, setShowProfile] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editBio, setEditBio] = useState('');
+  const [editEmoji, setEditEmoji] = useState('😎');
+  const [editColor, setEditColor] = useState('indigo');
+  const [profileSaving, setProfileSaving] = useState(false);
+
   // Modals state
   const [showPrivacy, setShowPrivacy] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
@@ -68,6 +89,35 @@ export default function Settings() {
     };
   }, [user]);
 
+  const openProfileEditor = () => {
+    setEditName(profile?.displayName || user?.displayName || '');
+    setEditBio(profile?.bio || '');
+    setEditEmoji(profile?.avatarEmoji || '😎');
+    setEditColor(profile?.avatarColor || 'indigo');
+    setShowProfile(true);
+  };
+
+  const saveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+    setProfileSaving(true);
+    try {
+      await updateProfile(user, { displayName: editName.trim() || user.displayName });
+      await setDoc(doc(db, 'userProfiles', user.uid), {
+        displayName: editName.trim(),
+        bio: editBio.trim(),
+        avatarEmoji: editEmoji,
+        avatarColor: editColor,
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
+      setShowProfile(false);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setProfileSaving(false);
+    }
+  };
+
   const handleSendInvite = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!sharingEmail.trim()) return;
@@ -113,26 +163,51 @@ export default function Settings() {
       <div className="grid gap-10">
         <section className="space-y-4">
           <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] px-2">{t('settings.profile')}</h3>
-          <Card className="flex items-center p-8 bg-gradient-to-br from-white to-gray-50 border-gray-100 shadow-xl shadow-indigo-500/5">
-            <div className="relative group">
-              <div className="w-24 h-24 rounded-[2rem] bg-indigo-600 flex items-center justify-center text-white text-4xl font-extrabold overflow-hidden mr-8 shadow-2xl shadow-indigo-200 group-hover:scale-105 transition-transform duration-500">
-                {user?.photoURL ? (
-                  <img src={user.photoURL} alt="avatar" referrerPolicy="no-referrer" className="w-full h-full object-cover" />
-                ) : user?.displayName?.[0] || user?.email?.[0] || 'U'}
+          <Card className="flex flex-col sm:flex-row items-center gap-6 p-8 bg-gradient-to-br from-white to-gray-50 border-gray-100 shadow-xl shadow-indigo-500/5">
+            {/* Avatar */}
+            <div className="relative shrink-0">
+              <div
+                className={cn(
+                  'w-24 h-24 rounded-[2rem] flex items-center justify-center text-white shadow-2xl transition-transform duration-500',
+                  AVATAR_COLORS.find(c => c.id === (profile?.avatarColor || 'indigo'))?.cls || 'bg-indigo-600'
+                )}
+              >
+                {user?.photoURL && !profile?.avatarEmoji ? (
+                  <img src={user.photoURL} alt="avatar" referrerPolicy="no-referrer" className="w-full h-full object-cover rounded-[2rem]" />
+                ) : profile?.avatarEmoji ? (
+                  <span className="text-4xl">{profile.avatarEmoji}</span>
+                ) : (
+                  <span className="text-4xl font-extrabold">{(profile?.displayName || user?.displayName || user?.email || 'U')[0].toUpperCase()}</span>
+                )}
               </div>
-              <div className="absolute -bottom-2 -right-2 bg-emerald-500 w-8 h-8 rounded-full border-4 border-white flex items-center justify-center text-white shadow-lg">
-                <Sparkles size={14} />
-              </div>
+              <button
+                type="button"
+                onClick={openProfileEditor}
+                className="absolute -bottom-2 -right-2 bg-white w-9 h-9 rounded-full border-2 border-gray-100 flex items-center justify-center text-gray-500 shadow-md hover:bg-indigo-600 hover:text-white hover:border-indigo-600 transition-all"
+                title="Zmień avatar"
+              >
+                <Camera size={14} />
+              </button>
             </div>
-            <div>
-              <div className="flex items-center gap-3 mb-1">
-                <h3 className="text-2xl font-extrabold text-[#1d1d1f]">{user?.displayName || t('settings.defaultUser') || 'Użytkownik LifeFlow'}</h3>
+
+            {/* Info */}
+            <div className="flex-1 text-center sm:text-left">
+              <div className="flex flex-col sm:flex-row items-center sm:items-baseline gap-2 mb-1">
+                <h3 className="text-2xl font-extrabold text-[#1d1d1f]">
+                  {profile?.displayName || user?.displayName || 'Użytkownik LifeFlow'}
+                </h3>
                 <Badge variant="primary" className="bg-indigo-50 text-indigo-600 border-none">PRO</Badge>
               </div>
-              <p className="text-gray-400 font-medium">{user?.email}</p>
+              <p className="text-gray-400 font-medium text-sm">{user?.email}</p>
+              {profile?.bio && (
+                <p className="text-gray-500 text-sm mt-2 italic leading-relaxed max-w-md">"{profile.bio}"</p>
+              )}
             </div>
-            <div className="ml-auto hidden md:block">
-               <Button variant="secondary" className="px-6">{t('settings.editProfile') || 'Edytuj profil'}</Button>
+
+            <div className="shrink-0">
+              <Button variant="secondary" className="px-6 gap-2" onClick={openProfileEditor}>
+                <Pencil size={15} /> Edytuj profil
+              </Button>
             </div>
           </Card>
         </section>
@@ -332,6 +407,95 @@ export default function Settings() {
            </div>
         </section>
       </div>
+
+      {/* Profile editor modal */}
+      <Modal isOpen={showProfile} onClose={() => setShowProfile(false)} title="Edytuj profil">
+        <form onSubmit={saveProfile} className="space-y-5">
+
+          {/* TOP: Live preview + imię + bio obok siebie */}
+          <div className="flex items-start gap-5 p-4 bg-gray-50 rounded-2xl border border-gray-100">
+            {/* Avatar preview — zawsze widoczny */}
+            <div
+              className={cn(
+                'w-20 h-20 shrink-0 rounded-2xl flex items-center justify-center text-4xl shadow-lg transition-all duration-200',
+                AVATAR_COLORS.find(c => c.id === editColor)?.cls ?? 'bg-indigo-500'
+              )}
+            >
+              {editEmoji}
+            </div>
+            {/* Pola imię + bio */}
+            <div className="flex-1 min-w-0 space-y-2">
+              <input
+                type="text"
+                placeholder="Imię i nazwisko..."
+                className="w-full bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-bold focus:ring-2 focus:ring-indigo-100 outline-none transition-all"
+                value={editName}
+                onChange={e => setEditName(e.target.value)}
+                maxLength={50}
+              />
+              <textarea
+                placeholder="Bio — napisz coś o sobie..."
+                className="w-full bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-xs font-medium focus:ring-2 focus:ring-indigo-100 outline-none transition-all resize-none h-16"
+                value={editBio}
+                onChange={e => setEditBio(e.target.value)}
+                maxLength={150}
+              />
+              <p className="text-[10px] text-gray-300 text-right">{editBio.length}/150</p>
+            </div>
+          </div>
+
+          {/* Emoji grid */}
+          <div className="space-y-2">
+            <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest px-1">Wybierz ikonę</label>
+            <div className="grid grid-cols-9 gap-1.5">
+              {AVATAR_EMOJIS.map(em => (
+                <button
+                  key={em}
+                  type="button"
+                  onClick={() => setEditEmoji(em)}
+                  className={cn(
+                    'w-9 h-9 rounded-xl text-xl flex items-center justify-center transition-all border-2',
+                    editEmoji === em
+                      ? 'border-indigo-500 bg-indigo-50 scale-110 shadow-md'
+                      : 'border-gray-100 bg-gray-50 hover:border-gray-200'
+                  )}
+                >
+                  {em}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Color palette */}
+          <div className="space-y-2">
+            <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest px-1">Kolor tła avatara</label>
+            <div className="flex gap-2 flex-wrap">
+              {AVATAR_COLORS.map(c => (
+                <button
+                  key={c.id}
+                  type="button"
+                  title={c.label}
+                  onClick={() => setEditColor(c.id)}
+                  className={cn(
+                    'w-8 h-8 rounded-xl transition-all border-2',
+                    c.cls,
+                    editColor === c.id
+                      ? 'scale-110 border-white shadow-lg ring-2 ring-offset-1 ring-gray-400'
+                      : 'border-transparent opacity-60 hover:opacity-100 hover:scale-105'
+                  )}
+                />
+              ))}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 pt-1">
+            <Button variant="ghost" onClick={() => setShowProfile(false)}>Anuluj</Button>
+            <Button type="submit" disabled={profileSaving}>
+              {profileSaving ? <RefreshCw size={16} className="animate-spin" /> : 'Zapisz profil'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
 
       {/* Modals */}
       <Modal isOpen={showPrivacy} onClose={() => setShowPrivacy(false)} title="Prywatność i Dane">

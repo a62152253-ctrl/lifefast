@@ -2,12 +2,14 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Play, Pause, RotateCcw, Timer, Zap, Coffee, Settings } from 'lucide-react';
 import { Card, Button, ProgressCircle } from './CommonUI';
 import { hapticFeedback } from '../lib/utils';
+import { useToast } from '../context/ToastContext';
 
 export default function FocusTimer() {
   const [timeLeft, setTimeLeft] = useState(25 * 60);
   const [isActive, setIsActive] = useState(false);
   const [mode, setMode] = useState<'work' | 'break'>('work');
   const timerRef = useRef<any>(null);
+  const { showToast } = useToast();
 
   useEffect(() => {
     if (isActive && timeLeft > 0) {
@@ -18,7 +20,11 @@ export default function FocusTimer() {
       clearInterval(timerRef.current);
       setIsActive(false);
       hapticFeedback('medium');
-      alert(mode === 'work' ? 'Czas na przerwę!' : 'Czas wrócić do pracy!');
+      const message = mode === 'work' ? 'Czas na przerwę!' : 'Czas wrócić do pracy!';
+      showToast({
+        type: 'info',
+        message,
+      });
       toggleMode();
     }
     return () => clearInterval(timerRef.current);

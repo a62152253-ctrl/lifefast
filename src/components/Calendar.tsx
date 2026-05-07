@@ -17,6 +17,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Button, IconButton, PageHeader, Modal } from './CommonUI';
 import { handleFirestoreError, OperationType } from '../lib/db';
 import { hapticFeedback, cn } from '../lib/utils';
+import { useToast } from '../context/ToastContext';
+import { useOffline } from '../context/OfflineContext';
 
 const EVENT_CATEGORIES = [
   { id: 'work',     label: 'Praca',     color: 'bg-indigo-500', dot: 'bg-indigo-400', light: 'bg-indigo-50 text-indigo-700 border-indigo-100' },
@@ -45,6 +47,8 @@ export default function Calendar() {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [events, setEvents] = useState<any[]>([]);
   const [isAdding, setIsAdding] = useState(false);
+  const { showToast } = useToast();
+  const { isOffline } = useOffline();
   const [editingEvent, setEditingEvent] = useState<any>(null);
 
   const [eventTitle, setEventTitle] = useState('');
@@ -83,7 +87,25 @@ export default function Calendar() {
 
   const saveEvent = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!eventTitle.trim() || !user) return;
+    
+    if (!eventTitle.trim() || !user) {
+      if (!eventTitle.trim()) {
+        showToast({
+          type: 'warning',
+          message: 'Wpisz nazwę wydarzenia',
+        });
+      }
+      return;
+    }
+    
+    if (isOffline) {
+      showToast({
+        type: 'offline',
+        message: 'Nie można zapisać wydarzenia w trybie offline',
+      });
+      return;
+    }
+    
     const payload = {
       title: eventTitle.trim(),
       time: allDay ? '' : eventTime,
@@ -93,16 +115,32 @@ export default function Calendar() {
       date: format(selectedDate, 'yyyy-MM-dd'),
       userId: user.uid,
     };
+    
     try {
       if (editingEvent) {
         await updateDoc(doc(db, 'calendarEvents', editingEvent.id), { ...payload, updatedAt: serverTimestamp() });
+        showToast({
+          type: 'success',
+          message: 'Wydarzenie zaktualizowane',
+        });
       } else {
         const eventId = Math.random().toString(36).substring(7);
         await setDoc(doc(db, 'calendarEvents', `event_${eventId}`), { ...payload, createdAt: serverTimestamp() });
+        showToast({
+          type: 'success',
+          message: 'Wydarzenie dodane',
+        });
       }
       setIsAdding(false);
       hapticFeedback('medium');
-    } catch (err) { handleFirestoreError(err, OperationType.CREATE, 'calendarEvents'); }
+    } catch (err) { 
+      console.error('Error saving event:', err);
+      handleFirestoreError(err, OperationType.CREATE, 'calendarEvents');
+      showToast({
+        type: 'error',
+        message: 'Nie udało się zapisać wydarzenia',
+      });
+    }
   };
 
   const deleteEvent = async (id: string) => {

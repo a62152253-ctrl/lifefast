@@ -9,6 +9,8 @@ import { Plus, ShoppingCart, Trash2, CheckCircle2, ShoppingBag, RefreshCw, X, Ch
 import { motion, AnimatePresence } from 'motion/react';
 import { handleFirestoreError, OperationType } from '../lib/db';
 import { hapticFeedback, cn } from '../lib/utils';
+import { useToast } from '../context/ToastContext';
+import { useOffline } from '../context/OfflineContext';
 
 const CATEGORIES = [
   { id: 'warzywa',  label: 'Warzywa & Owoce', icon: '🥦', color: 'bg-emerald-50 border-emerald-200 text-emerald-700' },
@@ -32,6 +34,8 @@ export default function Shopping() {
   const [selectedCat, setSelectedCat] = useState('inne');
   const [isAdding, setIsAdding] = useState(false);
   const [partnerUid, setPartnerUid] = useState<string | null>(null);
+  const { showToast } = useToast();
+  const { isOffline } = useOffline();
 
   useEffect(() => {
     if (!user) return;
@@ -56,7 +60,25 @@ export default function Shopping() {
 
   const addItem = async (e?: React.FormEvent) => {
     e?.preventDefault();
-    if (!newItemName.trim() || !user) return;
+    
+    if (!newItemName.trim() || !user) {
+      if (!newItemName.trim()) {
+        showToast({
+          type: 'warning',
+          message: 'Wpisz nazwę produktu',
+        });
+      }
+      return;
+    }
+    
+    if (isOffline) {
+      showToast({
+        type: 'offline',
+        message: 'Nie można dodać produktu w trybie offline',
+      });
+      return;
+    }
+    
     try {
       await addDoc(collection(db, 'shoppingItems'), {
         name: newItemName,
@@ -69,7 +91,18 @@ export default function Shopping() {
       });
       setNewItemName(''); setQuantity('1'); setIsAdding(false);
       hapticFeedback('medium');
-    } catch (err) { handleFirestoreError(err, OperationType.CREATE, 'shoppingItems'); }
+      showToast({
+        type: 'success',
+        message: 'Produkt dodany do listy',
+      });
+    } catch (err) { 
+      console.error('Error adding shopping item:', err);
+      handleFirestoreError(err, OperationType.CREATE, 'shoppingItems');
+      showToast({
+        type: 'error',
+        message: 'Nie udało się dodać produktu',
+      });
+    }
   };
 
   const toggleItem = async (item: any) => {

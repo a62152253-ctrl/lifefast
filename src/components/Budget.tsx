@@ -21,6 +21,8 @@ import { handleFirestoreError, OperationType } from '../lib/db';
 import { hapticFeedback, cn } from '../lib/utils';
 import { format } from 'date-fns';
 import { pl } from 'date-fns/locale';
+import { useToast } from '../context/ToastContext';
+import { useOffline } from '../context/OfflineContext';
 
 export default function Budget() {
   const [user] = useAuthState(auth);
@@ -31,6 +33,8 @@ export default function Budget() {
   const [type, setType] = useState<'income' | 'expense'>('expense');
   const [category, setCategory] = useState('Inne');
   const [editingTransaction, setEditingTransaction] = useState<any>(null);
+  const { showToast } = useToast();
+  const { isOffline } = useOffline();
 
   const CATEGORIES = [
     { name: 'Jedzenie', icon: '🍕' },
@@ -120,7 +124,27 @@ export default function Budget() {
     
     // Enhanced validation
     if (!desc.trim() || !amount || !user) {
+      if (!desc.trim()) {
+        showToast({
+          type: 'warning',
+          message: 'Wpisz opis transakcji',
+        });
+      }
+      if (!amount) {
+        showToast({
+          type: 'warning',
+          message: 'Wpisz kwotę transakcji',
+        });
+      }
       hapticFeedback('heavy');
+      return;
+    }
+
+    if (isOffline) {
+      showToast({
+        type: 'offline',
+        message: 'Nie można zapisać transakcji w trybie offline',
+      });
       return;
     }
 
@@ -130,21 +154,30 @@ export default function Budget() {
     
     if (isNaN(parsedAmount) || parsedAmount <= 0) {
       hapticFeedback('heavy');
-      console.error('❌ Nieprawidłowa kwota transakcji');
+      showToast({
+        type: 'warning',
+        message: 'Nieprawidłowa kwota transakcji',
+      });
       return;
     }
 
     // Reasonable limits (prevent accidental huge amounts)
     if (parsedAmount > 1000000) {
       hapticFeedback('heavy');
-      console.error('❌ Kwota przekracza dopuszczalny limit');
+      showToast({
+        type: 'warning',
+        message: 'Kwota przekracza dopuszczalny limit',
+      });
       return;
     }
 
     // Validate description length
     if (desc.trim().length < 2 || desc.trim().length > 100) {
       hapticFeedback('heavy');
-      console.error('❌ Nieprawidłowa długość opisu (2-100 znaków)');
+      showToast({
+        type: 'warning',
+        message: 'Opis musi mieć od 2 do 100 znaków',
+      });
       return;
     }
 
@@ -163,12 +196,20 @@ export default function Budget() {
           updatedAt: serverTimestamp()
         });
         console.log('✅ Transakcja zaktualizowana pomyślnie');
+        showToast({
+          type: 'success',
+          message: 'Transakcja zaktualizowana',
+        });
       } else {
         await addDoc(collection(db, 'budget'), {
           ...transactionData,
           date: serverTimestamp()
         });
         console.log('✅ Transakcja dodana pomyślnie');
+        showToast({
+          type: 'success',
+          message: 'Transakcja dodana',
+        });
       }
       
       hapticFeedback('medium');
@@ -178,6 +219,10 @@ export default function Budget() {
       hapticFeedback('heavy');
       console.error('❌ Błąd zapisu transakcji:', error);
       handleFirestoreError(error, OperationType.CREATE, 'budget');
+      showToast({
+        type: 'error',
+        message: 'Nie udało się zapisać transakcji',
+      });
     }
   };
 

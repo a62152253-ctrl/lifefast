@@ -19,6 +19,8 @@ import { DeviceProvider } from './context/DeviceContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { LanguageProvider } from './context/LanguageContext';
 import { CustomNavProvider } from './context/CustomNavContext';
+import { ToastProvider } from './context/ToastContext';
+import { OfflineProvider } from './context/OfflineContext';
 
 // 🔥 Lazy loaded pages (lepsza wydajność)
 const Dashboard = lazy(() => import('./components/Dashboard'));
@@ -133,7 +135,9 @@ export default function App() {
       <ThemeProvider>
         <LanguageProvider>
           <CustomNavProvider>
-            <Router>
+            <ToastProvider>
+              <OfflineProvider>
+                <Router>
               <Suspense fallback={<div>Loading...</div>}>
             <Routes>
 
@@ -155,6 +159,8 @@ export default function App() {
             </Routes>
           </Suspense>
         </Router>
+        </OfflineProvider>
+        </ToastProvider>
         </CustomNavProvider>
       </LanguageProvider>
       </ThemeProvider>

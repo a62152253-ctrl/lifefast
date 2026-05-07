@@ -13,6 +13,10 @@ import { hapticFeedback, cn } from '../lib/utils';
 import { format, isToday, isTomorrow, isPast, parseISO } from 'date-fns';
 import { pl } from 'date-fns/locale';
 import { brainstormTaskBreakdown } from '../services/geminiService';
+import { SkeletonTask, SkeletonList } from './SkeletonUI';
+import { NetworkError, DatabaseError } from './ErrorStates';
+import { useToast } from '../context/ToastContext';
+import { useOffline } from '../context/OfflineContext';
 
 type Priority = 'low' | 'medium' | 'high';
 
@@ -52,6 +56,10 @@ export default function Tasks() {
   const [partnerUid, setPartnerUid] = useState<string | null>(null);
   const [aiLoadingTaskId, setAiLoadingTaskId] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const { showToast } = useToast();
+  const { isOffline } = useOffline();
 
   useEffect(() => {
     if (!user) return;
@@ -63,6 +71,8 @@ export default function Tasks() {
 
   useEffect(() => {
     if (!user) return;
+    setIsLoading(true);
+    setError(null);
     const userIds = partnerUid ? [user.uid, partnerUid] : [user.uid];
     const q = query(
       collection(db, 'tasks'),
@@ -71,34 +81,78 @@ export default function Tasks() {
       limit(200)
     );
     return onSnapshot(q, snap => {
-      const valid = snap.docs.map(d => {
-        const data = d.data();
-        if (!data.title || typeof data.title !== 'string') return null;
-        return {
-          id: d.id,
-          title: String(data.title).trim(),
-          completed: Boolean(data.completed),
-          priority: ['low', 'medium', 'high'].includes(data.priority) ? data.priority : 'medium',
-          category: data.category || 'other',
-          dueDate: data.dueDate || null,
-          userId: data.userId,
-          createdAt: data.createdAt,
-          completedAt: data.completedAt,
-          parentTaskId: data.parentTaskId,
-        };
-      }).filter(Boolean);
-      setTasks(valid as any[]);
-    }, err => handleFirestoreError(err, OperationType.LIST, 'tasks'));
-  }, [user, partnerUid]);
+      try {
+        const valid = snap.docs.map(d => {
+          const data = d.data();
+          if (!data.title || typeof data.title !== 'string') return null;
+          return {
+            id: d.id,
+            title: String(data.title).trim(),
+            completed: Boolean(data.completed),
+            priority: ['low', 'medium', 'high'].includes(data.priority) ? data.priority : 'medium',
+            category: data.category || 'other',
+            dueDate: data.dueDate || null,
+            userId: data.userId,
+            createdAt: data.createdAt,
+            completedAt: data.completedAt,
+            parentTaskId: data.parentTaskId,
+          };
+        }).filter(Boolean);
+        setTasks(valid as any[]);
+        setIsLoading(false);
+        setError(null);
+      } catch (err) {
+        console.error('Error processing tasks:', err);
+        setError('Failed to process tasks');
+        setIsLoading(false);
+        showToast({
+          type: 'error',
+          message: 'Nie udało się załadować zadań',
+        });
+      }
+    }, (err) => {
+      console.error('Error loading tasks:', err);
+      setError(err.message || 'Failed to load tasks');
+      setIsLoading(false);
+      handleFirestoreError(err, OperationType.LIST, 'tasks');
+      showToast({
+        type: 'error',
+        message: 'Nie udało się załadować zadań',
+      });
+    });
+  }, [user, partnerUid, showToast]);
 
   const addTask = async (e?: React.FormEvent) => {
     e?.preventDefault();
     const sanitized = newTaskTitle.trim().replace(/\s+/g, ' ');
     if (!sanitized || sanitized.length < 2 || sanitized.length > 200 || !user) {
-      hapticFeedback('heavy'); return;
+      hapticFeedback('heavy'); 
+      showToast({
+        type: 'warning',
+        message: 'Tytuł zadania musi mieć od 2 do 200 znaków',
+      });
+      return;
     }
+    
+    if (isOffline) {
+      hapticFeedback('heavy');
+      showToast({
+        type: 'offline',
+        message: 'Nie można dodać zadania w trybie offline',
+      });
+      return;
+    }
+    
     const duplicate = tasks.find(t => t.title.toLowerCase() === sanitized.toLowerCase() && !t.completed);
-    if (duplicate) { hapticFeedback('heavy'); return; }
+    if (duplicate) { 
+      hapticFeedback('heavy'); 
+      showToast({
+        type: 'warning',
+        message: 'Takie zadanie już istnieje',
+      });
+      return; 
+    }
+    
     try {
       await addDoc(collection(db, 'tasks'), {
         title: sanitized, completed: false, priority,
@@ -108,9 +162,17 @@ export default function Tasks() {
       setNewTaskTitle(''); setPriority('medium'); setNewCategory('other'); setNewDueDate('');
       setIsAdding(false);
       hapticFeedback('medium');
+      showToast({
+        type: 'success',
+        message: 'Zadanie dodane pomyślnie',
+      });
     } catch (error) {
       hapticFeedback('heavy');
       handleFirestoreError(error, OperationType.CREATE, 'tasks');
+      showToast({
+        type: 'error',
+        message: 'Nie udało się dodać zadania',
+      });
     }
   };
 
@@ -220,108 +282,114 @@ export default function Tasks() {
 
         {/* Task list */}
         <div className="flex-1 w-full space-y-3">
-          <AnimatePresence mode="popLayout">
-            {filteredTasks.length > 0 ? filteredTasks.map((task, idx) => {
-              const catStyle = getCategoryStyle(task.category);
-              const due = task.dueDate ? dueDateLabel(task.dueDate) : null;
+          {isLoading ? (
+            <SkeletonList items={5} />
+          ) : error ? (
+            <NetworkError onRetry={() => window.location.reload()} />
+          ) : (
+            <AnimatePresence mode="popLayout">
+              {filteredTasks.length > 0 ? filteredTasks.map((task, idx) => {
+                const catStyle = getCategoryStyle(task.category);
+                const due = task.dueDate ? dueDateLabel(task.dueDate) : null;
 
-              return (
-                <motion.div
-                  layout key={task.id}
-                  initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }}
-                  transition={{ delay: idx * 0.04 }}
-                >
-                  <Card className={cn(
-                    'flex items-center gap-5 p-5 border-none shadow-[0_2px_16px_-4px_rgba(0,0,0,0.06)] cursor-pointer group hover:bg-indigo-50/30 transition-all duration-300',
-                    task.completed && 'opacity-60 bg-gray-50/50'
-                  )}
-                    onClick={() => toggleTask(task)}
+                return (
+                  <motion.div
+                    layout key={task.id}
+                    initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }}
+                    transition={{ delay: idx * 0.04 }}
                   >
-                    <div className={cn(
-                      'w-10 h-10 rounded-2xl border-2 flex items-center justify-center transition-all duration-300 group-hover:scale-110 shrink-0',
-                      task.completed ? 'bg-[#1d1d1f] border-[#1d1d1f] text-white' : 'bg-white border-gray-100 group-hover:border-indigo-400'
-                    )}>
-                      {task.completed ? <CheckCircle2 size={20} /> : <Circle size={20} className="text-gray-100" />}
-                    </div>
-
-                    <div className="flex-1 min-w-0">
-                      <h4 className={cn(
-                        'text-lg font-black tracking-tight truncate transition-all',
-                        task.completed ? 'line-through text-gray-400' : 'text-[#1d1d1f]'
+                    <Card className={cn(
+                      'flex items-center gap-5 p-5 border-none shadow-[0_2px_16px_-4px_rgba(0,0,0,0.06)] cursor-pointer group hover:bg-indigo-50/30 transition-all duration-300',
+                      task.completed && 'opacity-60 bg-gray-50/50'
+                    )}
+                      onClick={() => toggleTask(task)}
+                    >
+                      <div className={cn(
+                        'w-10 h-10 rounded-2xl border-2 flex items-center justify-center transition-all duration-300 group-hover:scale-110 shrink-0',
+                        task.completed ? 'bg-[#1d1d1f] border-[#1d1d1f] text-white' : 'bg-white border-gray-100 group-hover:border-indigo-400'
                       )}>
-                        {task.title}
-                      </h4>
-                      <div className="flex items-center gap-2 mt-1 flex-wrap">
-                        <Badge variant={task.priority === 'high' ? 'danger' : task.priority === 'medium' ? 'primary' : 'success'}>
-                          {task.priority === 'high' ? 'Wysoki' : task.priority === 'medium' ? 'Średni' : 'Niski'}
-                        </Badge>
-                        {task.category && task.category !== 'other' && (
-                          <span className={cn('text-[10px] px-2 py-0.5 rounded-full font-black', catStyle)}>
-                            {TASK_CATEGORIES.find(c => c.id === task.category)?.label}
-                          </span>
-                        )}
-                        {due && (
-                          <div className={cn('flex items-center gap-1 text-[10px] font-black', due.urgent ? 'text-rose-500' : 'text-gray-400')}>
-                            <CalendarDays size={11} />
-                            {due.label}
+                        {task.completed ? <CheckCircle2 size={20} /> : <Circle size={20} className="text-gray-100" />}
+                      </div>
+
+                      <div className="flex-1 min-w-0">
+                        <h4 className={cn(
+                          'text-lg font-black tracking-tight truncate transition-all',
+                          task.completed ? 'line-through text-gray-400' : 'text-[#1d1d1f]'
+                        )}>
+                          {task.title}
+                        </h4>
+                        <div className="flex items-center gap-2 mt-1 flex-wrap">
+                          <Badge variant={task.priority === 'high' ? 'danger' : task.priority === 'medium' ? 'primary' : 'success'}>
+                            {task.priority === 'high' ? 'Wysoki' : task.priority === 'medium' ? 'Średni' : 'Niski'}
+                          </Badge>
+                          {task.category && task.category !== 'other' && (
+                            <span className={cn('text-[10px] px-2 py-0.5 rounded-full font-black', catStyle)}>
+                              {TASK_CATEGORIES.find(c => c.id === task.category)?.label}
+                            </span>
+                          )}
+                          {due && (
+                            <div className={cn('flex items-center gap-1 text-[10px] font-black', due.urgent ? 'text-rose-500' : 'text-gray-400')}>
+                              <CalendarDays size={11} />
+                              {due.label}
+                            </div>
+                          )}
+                          <div className="flex items-center gap-1 text-gray-300">
+                            <Clock size={11} />
+                            <span className="text-[10px] font-black uppercase tracking-widest">
+                              {format(task.createdAt?.toDate?.() || new Date(), 'd MMM', { locale: pl })}
+                            </span>
                           </div>
-                        )}
-                        <div className="flex items-center gap-1 text-gray-300">
-                          <Clock size={11} />
-                          <span className="text-[10px] font-black uppercase tracking-widest">
-                            {format(task.createdAt?.toDate?.() || new Date(), 'd MMM', { locale: pl })}
-                          </span>
                         </div>
                       </div>
-                    </div>
 
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all" onClick={e => e.stopPropagation()}>
-                      {!task.completed && (
-                        <IconButton
-                          icon={aiLoadingTaskId === task.id ? Loader2 : BrainCircuit}
-                          disabled={!!aiLoadingTaskId}
-                          title="Rozbij zadanie z AI"
-                          onClick={() => handleAiBreakdown(task)}
-                          className={cn(
-                            'p-3 bg-indigo-50 text-indigo-400 hover:bg-indigo-100 hover:text-indigo-600 border border-indigo-100',
-                            aiLoadingTaskId === task.id && 'animate-spin'
-                          )}
-                        />
-                      )}
-                      {deleteConfirm === task.id ? (
-                        <div className="flex items-center gap-1">
-                          <button type="button" title="Potwierdź" onClick={() => deleteTask(task.id)} className="p-2 bg-rose-500 text-white rounded-xl hover:bg-rose-600">
-                            <Check size={14} />
-                          </button>
-                          <button type="button" title="Anuluj" onClick={() => setDeleteConfirm(null)} className="p-2 bg-gray-100 text-gray-500 rounded-xl hover:bg-gray-200">
-                            <X size={14} />
-                          </button>
-                        </div>
-                      ) : (
-                        <IconButton
-                          icon={Trash2}
-                          title="Usuń zadanie"
-                          onClick={() => setDeleteConfirm(task.id)}
-                          className="p-3 bg-gray-50 text-gray-200 hover:bg-rose-50 hover:text-rose-500"
-                        />
-                      )}
-                    </div>
-                  </Card>
-                </motion.div>
-              );
-            }) : (
-              <div className="bg-white rounded-[3rem] p-20 text-center border-2 border-dashed border-gray-100 flex flex-col items-center">
-                <div className="w-20 h-20 bg-gray-50 text-gray-200 rounded-[2rem] flex items-center justify-center mb-6">
-                  <Search size={40} />
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all" onClick={e => e.stopPropagation()}>
+                        {!task.completed && (
+                          <IconButton
+                            icon={aiLoadingTaskId === task.id ? Loader2 : BrainCircuit}
+                            disabled={!!aiLoadingTaskId}
+                            title="Rozbij zadanie z AI"
+                            onClick={() => handleAiBreakdown(task)}
+                            className={cn(
+                              'p-3 bg-indigo-50 text-indigo-400 hover:bg-indigo-100 hover:text-indigo-600 border border-indigo-100',
+                              aiLoadingTaskId === task.id && 'animate-spin'
+                            )}
+                          />
+                        )}
+                        {deleteConfirm === task.id ? (
+                          <div className="flex items-center gap-1">
+                            <button type="button" title="Potwierdź" onClick={() => deleteTask(task.id)} className="p-2 bg-rose-500 text-white rounded-xl hover:bg-rose-600">
+                              <Check size={14} />
+                            </button>
+                            <button type="button" title="Anuluj" onClick={() => setDeleteConfirm(null)} className="p-2 bg-gray-100 text-gray-500 rounded-xl hover:bg-gray-200">
+                              <X size={14} />
+                            </button>
+                          </div>
+                        ) : (
+                          <IconButton
+                            icon={Trash2}
+                            title="Usuń zadanie"
+                            onClick={() => setDeleteConfirm(task.id)}
+                            className="p-3 bg-gray-50 text-gray-200 hover:bg-rose-50 hover:text-rose-500"
+                          />
+                        )}
+                      </div>
+                    </Card>
+                  </motion.div>
+                );
+              }) : (
+                <div className="bg-white rounded-[3rem] p-20 text-center border-2 border-dashed border-gray-100 flex flex-col items-center">
+                  <div className="w-20 h-20 bg-gray-50 text-gray-200 rounded-[2rem] flex items-center justify-center mb-6">
+                    <Search size={40} />
+                  </div>
+                  <h4 className="text-3xl font-black text-[#1d1d1f] tracking-tighter">Brak zadań</h4>
+                  <p className="text-gray-400 mt-3 max-w-sm mx-auto text-lg font-medium">Brak wyników dla obecnych filtrów.</p>
+                  <Button variant="secondary" className="mt-8" onClick={() => { setFilter('all'); setSearch(''); }}>
+                    Wyczyść filtry
+                  </Button>
                 </div>
-                <h4 className="text-3xl font-black text-[#1d1d1f] tracking-tighter">Brak zadań</h4>
-                <p className="text-gray-400 mt-3 max-w-sm mx-auto text-lg font-medium">Brak wyników dla obecnych filtrów.</p>
-                <Button variant="secondary" className="mt-8" onClick={() => { setFilter('all'); setSearch(''); }}>
-                  Wyczyść filtry
-                </Button>
-              </div>
-            )}
-          </AnimatePresence>
+              )}
+            </AnimatePresence>
+          )}
         </div>
       </div>
 

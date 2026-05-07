@@ -12,6 +12,8 @@ import { format, startOfToday, subDays, isSameDay } from 'date-fns';
 import { pl } from 'date-fns/locale';
 import { hapticFeedback, cn } from '../lib/utils';
 import { getHabitCoaching } from '../services/geminiService';
+import { useToast } from '../context/ToastContext';
+import { useOffline } from '../context/OfflineContext';
 
 const HABIT_CATEGORIES = [
   { id: 'health',  label: 'Zdrowie',  color: 'bg-emerald-100 text-emerald-700', dot: 'bg-emerald-400' },
@@ -53,6 +55,8 @@ export default function Habits() {
   const [loadingHabitId, setLoadingHabitId] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [filterCat, setFilterCat] = useState<string | null>(null);
+  const { showToast } = useToast();
+  const { isOffline } = useOffline();
 
   const today = format(startOfToday(), 'yyyy-MM-dd');
   const last7Days = Array.from({ length: 7 }).map((_, i) => {
@@ -71,7 +75,25 @@ export default function Habits() {
 
   const addHabit = async (e?: React.FormEvent) => {
     e?.preventDefault();
-    if (!newName.trim() || !user) return;
+    
+    if (!newName.trim() || !user) {
+      if (!newName.trim()) {
+        showToast({
+          type: 'warning',
+          message: 'Wpisz nazwę nawyku',
+        });
+      }
+      return;
+    }
+    
+    if (isOffline) {
+      showToast({
+        type: 'offline',
+        message: 'Nie można dodać nawyku w trybie offline',
+      });
+      return;
+    }
+    
     try {
       await addDoc(collection(db, 'habits'), {
         name: newName.trim(),
@@ -84,7 +106,18 @@ export default function Habits() {
       });
       setNewName(''); setNewEmoji('⚡'); setNewCategory('health'); setNewTarget(7); setIsAdding(false);
       hapticFeedback('medium');
-    } catch (err) { handleFirestoreError(err, OperationType.CREATE, 'habits'); }
+      showToast({
+        type: 'success',
+        message: 'Nawyk dodany pomyślnie',
+      });
+    } catch (err) { 
+      console.error('Error adding habit:', err);
+      handleFirestoreError(err, OperationType.CREATE, 'habits');
+      showToast({
+        type: 'error',
+        message: 'Nie udało się dodać nawyku',
+      });
+    }
   };
 
   const toggleDay = async (habit: any, date: string) => {

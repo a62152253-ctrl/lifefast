@@ -12,6 +12,8 @@ import { hapticFeedback, cn } from '../lib/utils';
 import { format } from 'date-fns';
 import { pl } from 'date-fns/locale';
 import { summarizeNote } from '../services/geminiService';
+import { useToast } from '../context/ToastContext';
+import { useOffline } from '../context/OfflineContext';
 
 const NOTE_COLORS = [
   { id: 'white',  bg: 'bg-white',        border: 'border-gray-100' },
@@ -50,6 +52,8 @@ export default function Notes() {
   const [noteTags, setNoteTags] = useState<string[]>([]);
   const [search, setSearch] = useState('');
   const [filterTag, setFilterTag] = useState<string | null>(null);
+  const { showToast } = useToast();
+  const { isOffline } = useOffline();
   const [sortMode, setSortMode] = useState<SortMode>('newest');
   const [isSummarizing, setIsSummarizing] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
@@ -68,11 +72,33 @@ export default function Notes() {
 
   const saveNote = async (e?: React.FormEvent) => {
     e?.preventDefault();
-    if (!content.trim() || !user) return;
+    
+    if (!content.trim() || !user) {
+      if (!content.trim()) {
+        showToast({
+          type: 'warning',
+          message: 'Wpisz treść notatki',
+        });
+      }
+      return;
+    }
+    
+    if (isOffline) {
+      showToast({
+        type: 'offline',
+        message: 'Nie można zapisać notatki w trybie offline',
+      });
+      return;
+    }
+    
     try {
       if (editingNote) {
         await updateDoc(doc(db, 'notes', editingNote.id), {
           title, content, color: noteColor, tags: noteTags, updatedAt: serverTimestamp()
+        });
+        showToast({
+          type: 'success',
+          message: 'Notatka zaktualizowana',
         });
       } else {
         await addDoc(collection(db, 'notes'), {
@@ -80,10 +106,21 @@ export default function Notes() {
           userId: user.uid, pinned: false,
           createdAt: serverTimestamp(), updatedAt: serverTimestamp()
         });
+        showToast({
+          type: 'success',
+          message: 'Notatka dodana',
+        });
       }
       hapticFeedback('medium');
       closeModal();
-    } catch (err) { handleFirestoreError(err, OperationType.WRITE, 'notes'); }
+    } catch (err) { 
+      console.error('Error saving note:', err);
+      handleFirestoreError(err, OperationType.WRITE, 'notes');
+      showToast({
+        type: 'error',
+        message: 'Nie udało się zapisać notatki',
+      });
+    }
   };
 
   const togglePin = async (note: any, e: React.MouseEvent) => {

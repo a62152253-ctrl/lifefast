@@ -3,6 +3,7 @@ import { collection, doc, onSnapshot, setDoc, deleteDoc, updateDoc } from 'fireb
 import { db, auth } from '../lib/firebase';
 import { NavItem } from '../components/CommonUI';
 import { Plus, X, Edit2, Bookmark, Star, Folder, Target, Calendar, BookOpen, Briefcase, Music, Gamepad2, Camera, Palette } from 'lucide-react';
+import { useToast } from './ToastContext';
 
 export interface CustomNavItem extends Omit<NavItem, 'icon'> {
   iconKey?: string;
@@ -41,6 +42,7 @@ export const CUSTOM_ICONS = {
 export const CustomNavProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [customItems, setCustomItems] = useState<CustomNavItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const { showToast } = useToast();
 
   useEffect(() => {
     const user = auth.currentUser;
@@ -99,9 +101,15 @@ export const CustomNavProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       console.error('❌ Error adding custom nav item:', error);
       // Show user-friendly error
       if (error instanceof Error) {
-        alert(`Błąd dodawania elementu nawigacji: ${error.message}`);
+        showToast({
+          type: 'error',
+          message: `Nie udało się dodać elementu nawigacji: ${error.message}`,
+        });
       } else {
-        alert('Wystąpił nieznany błąd podczas dodawania elementu nawigacji');
+        showToast({
+          type: 'error',
+          message: 'Wystąpił nieznany błąd podczas dodawania elementu nawigacji',
+        });
       }
     }
   };
@@ -120,9 +128,15 @@ export const CustomNavProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     } catch (error) {
       console.error('❌ Error removing custom nav item:', error);
       if (error instanceof Error) {
-        alert(`Błąd usuwania elementu nawigacji: ${error.message}`);
+        showToast({
+          type: 'error',
+          message: `Nie udało się usunąć elementu nawigacji: ${error.message}`,
+        });
       } else {
-        alert('Wystąpił nieznany błąd podczas usuwania elementu nawigacji');
+        showToast({
+          type: 'error',
+          message: 'Wystąpił nieznany błąd podczas usuwania elementu nawigacji',
+        });
       }
     }
   };
@@ -149,9 +163,15 @@ export const CustomNavProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     } catch (error) {
       console.error('❌ Error updating custom nav item:', error);
       if (error instanceof Error) {
-        alert(`Błąd aktualizacji elementu nawigacji: ${error.message}`);
+        showToast({
+          type: 'error',
+          message: `Nie udało się zaktualizować elementu nawigacji: ${error.message}`,
+        });
       } else {
-        alert('Wystąpił nieznany błąd podczas aktualizacji elementu nawigacji');
+        showToast({
+          type: 'error',
+          message: 'Wystąpił nieznany błąd podczas aktualizacji elementu nawigacji',
+        });
       }
     }
   };
@@ -174,9 +194,15 @@ export const CustomNavProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     } catch (error) {
       console.error('❌ Error reordering custom nav items:', error);
       if (error instanceof Error) {
-        alert(`Błąd zmiany kolejności: ${error.message}`);
+        showToast({
+          type: 'error',
+          message: `Nie udało się zmienić kolejności: ${error.message}`,
+        });
       } else {
-        alert('Wystąpił nieznany błąd podczas zmiany kolejności elementów');
+        showToast({
+          type: 'error',
+          message: 'Wystąpił nieznany błąd podczas zmiany kolejności elementów',
+        });
       }
     }
   };

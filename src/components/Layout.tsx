@@ -1,35 +1,72 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { Menu, X, LogOut, User as UserIcon, Sparkles, Zap, Smartphone } from 'lucide-react';
+import { Menu, X, LogOut, User as UserIcon, Sparkles, Zap, Smartphone, Wifi, WifiOff } from 'lucide-react';
 import { NAV_ITEMS, DIRECT_NAV_ITEMS, IconButton } from './CommonUI';
-// import { useCustomNav, CUSTOM_ICONS } from '../context/CustomNavContext'; // Temporarily disabled
-import CustomNavManager from './CustomNavManager';
 import { motion, AnimatePresence } from 'motion/react';
-import { NotificationManager } from './NotificationManager';
+import NotificationManager from './NotificationManager';
 import NotificationCenter from './NotificationCenter';
-import QuickActions from './QuickActions';
 import AIChat from './AIChat';
 import { useAuthState } from 'react-firebase-hooks/auth';
-import { auth } from '../lib/firebase';
-import { signOut } from 'firebase/auth';
+import { auth, logout } from '../lib/firebase';
 import { hapticFeedback, cn } from '../lib/utils';
 import { useDevice } from '../context/DeviceContext';
+import { useOffline } from '../context/OfflineContext';
+import { useToast } from '../context/ToastContext';
 
 export default function Layout() {
   const { deviceType } = useDevice();
-  // const { customItems } = useCustomNav(); // Temporarily disabled
+  const { isOffline } = useOffline();
+  const { showToast } = useToast();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-  const [user] = useAuthState(auth);
+  const [user, loading, error] = useAuthState(auth);
 
-  const isDirectRoute = location.pathname.startsWith('/direct');
-  const baseNavItems = isDirectRoute ? DIRECT_NAV_ITEMS : NAV_ITEMS;
-  const navItems = baseNavItems; // Temporarily disable custom items
+  // Memoize navigation items to prevent recreation
+  const isDirectRoute = useMemo(() => location.pathname.startsWith('/direct'), [location.pathname]);
+  const baseNavItems = useMemo(() => isDirectRoute ? DIRECT_NAV_ITEMS : NAV_ITEMS, [isDirectRoute]);
+  const navItems = baseNavItems;
 
-  const handleLogout = async () => {
-    try { await signOut(auth); navigate('/login'); } catch (e) { console.error(e); }
-  };
+  // Enhanced logout with better error handling
+  const handleLogout = useCallback(async () => {
+    if (loggingOut) return;
+    
+    setLoggingOut(true);
+    hapticFeedback('medium');
+    
+    try {
+      await logout();
+      showToast({
+        type: 'success',
+        message: 'Wylogowano pomyślnie'
+      });
+      navigate('/login');
+    } catch (error: any) {
+      showToast({
+        type: 'error',
+        message: 'Nie udało się wylogować. Spróbuj ponownie.'
+      });
+    } finally {
+      setLoggingOut(false);
+      setIsMenuOpen(false);
+    }
+  }, [loggingOut, navigate, showToast]);
+
+  // Close menu on route change
+  useEffect(() => {
+    setIsMenuOpen(false);
+  }, [location.pathname]);
+
+  // Handle auth errors
+  useEffect(() => {
+    if (error) {
+      showToast({
+        type: 'error',
+        message: 'Problem z autentykacją. Spróbuj odświeżyć stronę.'
+      });
+    }
+  }, [error, showToast]);
 
   const content = (
     <div className={cn(
@@ -37,7 +74,6 @@ export default function Layout() {
       deviceType === 'mobile' && 'overflow-hidden max-h-screen'
     )}>
       <NotificationManager />
-      <QuickActions />
       <AIChat />
 
       {/* ── Desktop Sidebar ─────────────────────────────────────────────── */}
@@ -46,15 +82,26 @@ export default function Layout() {
         'border-r border-black/[0.055] bg-white/70 backdrop-blur-xl',
         deviceType === 'mobile' && '!hidden'
       )}>
-        {/* Logo */}
+        {/* Logo with status */}
         <div className="px-6 py-7">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-brand flex items-center justify-center text-white shadow-[0_4px_16px_rgba(79,70,229,0.4)]">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-brand flex items-center justify-center text-white shadow-[0_4px_16px_rgba(79,70,229,0.4)] relative">
               <Sparkles size={20} fill="currentColor" />
+              {isOffline && (
+                <div className="absolute -top-1 -right-1 w-3 h-3 bg-rose-500 rounded-full border-2 border-white" />
+              )}
             </div>
-            <div>
+            <div className="flex-1">
               <h1 className="text-lg font-display font-black text-[#1d1d1f] tracking-tighter leading-none">LifeFlow</h1>
-              <p className="text-[9px] font-bold text-[#aeaeb2] uppercase tracking-[0.3em] leading-none mt-0.5">v4.0</p>
+              <div className="flex items-center gap-2 mt-0.5">
+                <p className="text-[9px] font-bold text-[#aeaeb2] uppercase tracking-[0.3em] leading-none">v4.0</p>
+                {isOffline && (
+                  <div className="flex items-center gap-1 text-rose-500">
+                    <WifiOff size={10} />
+                    <span className="text-[8px] font-medium">Offline</span>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -104,30 +151,47 @@ export default function Layout() {
             </NavLink>
           ))}
 
-          {/* Custom Item Button Temporarily Disabled */}
-          {/* <div className="px-2 py-2">
-            <CustomNavManager />
-          </div> */}
         </nav>
 
-        {/* User footer */}
+        {/* User footer with enhanced status */}
         <div className="p-4 mt-auto border-t border-black/[0.05]">
           <div className="flex items-center gap-3 px-3 py-2.5 rounded-2xl hover:bg-[#f5f5f7] transition-colors group">
-            <div className="w-8 h-8 rounded-xl bg-[#f5f5f7] flex items-center justify-center text-[#6e6e73] shrink-0 border border-black/[0.06]">
+            <div className="w-8 h-8 rounded-xl bg-[#f5f5f7] flex items-center justify-center text-[#6e6e73] shrink-0 border border-black/[0.06] relative">
               <UserIcon size={16} />
+              {loading && (
+                <div className="absolute inset-0 bg-white/50 rounded-xl flex items-center justify-center">
+                  <div className="w-4 h-4 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+                </div>
+              )}
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-[13px] font-semibold text-[#1d1d1f] truncate leading-none">
                 {user?.displayName || user?.email || 'User'}
               </p>
-              <p className="text-[10px] text-[#aeaeb2] mt-0.5 leading-none">Pro Plan</p>
+              <p className="text-[10px] text-[#aeaeb2] mt-0.5 leading-none flex items-center gap-1">
+                Pro Plan
+                {isOffline && (
+                  <span className="text-rose-500">• Offline</span>
+                )}
+              </p>
             </div>
             <button
               type="button"
               onClick={handleLogout}
-              className="w-7 h-7 rounded-lg flex items-center justify-center text-[#aeaeb2] hover:text-rose-500 hover:bg-rose-50 opacity-0 group-hover:opacity-100 transition-all"
+              disabled={loggingOut}
+              className={cn(
+                'w-7 h-7 rounded-lg flex items-center justify-center transition-all',
+                'opacity-0 group-hover:opacity-100',
+                loggingOut 
+                  ? 'text-gray-400 bg-gray-100 cursor-not-allowed'
+                  : 'text-[#aeaeb2] hover:text-rose-500 hover:bg-rose-50'
+              )}
             >
-              <LogOut size={14} />
+              {loggingOut ? (
+                <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <LogOut size={14} />
+              )}
             </button>
           </div>
         </div>
@@ -157,8 +221,16 @@ export default function Layout() {
 
         <div className="flex items-center gap-2">
           <NotificationCenter />
-          <div className="w-8 h-8 rounded-2xl bg-[#f5f5f7] border border-black/[0.06] flex items-center justify-center text-[#6e6e73]">
+          <div className="w-8 h-8 rounded-2xl bg-[#f5f5f7] border border-black/[0.06] flex items-center justify-center text-[#6e6e73] relative">
             <UserIcon size={15} />
+            {loading && (
+              <div className="absolute inset-0 bg-white/50 rounded-2xl flex items-center justify-center">
+                <div className="w-3 h-3 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+              </div>
+            )}
+            {isOffline && (
+              <div className="absolute -top-1 -right-1 w-3 h-3 bg-rose-500 rounded-full border-2 border-white" />
+            )}
           </div>
         </div>
       </header>
@@ -234,30 +306,68 @@ export default function Layout() {
                 ))}
               </nav>
 
-              {/* Footer */}
+              {/* Footer with enhanced logout */}
               <div className="p-4 border-t border-black/[0.055] space-y-2">
                 <div className="px-3 py-2.5 flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-[#f5f5f7] flex items-center justify-center border border-black/[0.06]">
+                  <div className="w-9 h-9 rounded-xl bg-[#f5f5f7] flex items-center justify-center border border-black/[0.06] relative">
                     <UserIcon size={17} className="text-[#6e6e73]" />
+                    {loading && (
+                      <div className="absolute inset-0 bg-white/50 rounded-xl flex items-center justify-center">
+                        <div className="w-4 h-4 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+                      </div>
+                    )}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-[14px] font-semibold text-[#1d1d1f] truncate leading-none">
                       {user?.displayName || user?.email || 'User'}
                     </p>
-                    <p className="text-[10px] text-[#aeaeb2] mt-0.5">Pro Plan</p>
+                    <p className="text-[10px] text-[#aeaeb2] mt-0.5 flex items-center gap-1">
+                      Pro Plan
+                      {isOffline && (
+                        <span className="text-rose-500">• Offline</span>
+                      )}
+                    </p>
                   </div>
                 </div>
                 <button
                   type="button"
-                  onClick={() => { handleLogout(); setIsMenuOpen(false); }}
-                  className="w-full flex items-center gap-3 px-3 py-3 rounded-2xl text-rose-600 bg-rose-50 hover:bg-rose-100 transition-colors"
+                  onClick={handleLogout}
+                  disabled={loggingOut}
+                  className={cn(
+                    'w-full flex items-center justify-center gap-3 px-3 py-3 rounded-2xl transition-colors',
+                    loggingOut
+                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      : 'text-rose-600 bg-rose-50 hover:bg-rose-100'
+                  )}
                 >
-                  <LogOut size={17} />
-                  <span className="text-[15px] font-semibold">Wyloguj się</span>
+                  {loggingOut ? (
+                    <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <LogOut size={17} />
+                  )}
+                  <span className="text-[15px] font-semibold">
+                    {loggingOut ? 'Wylogowywanie...' : 'Wyloguj się'}
+                  </span>
                 </button>
               </div>
             </motion.aside>
           </>
+        )}
+      </AnimatePresence>
+
+      {/* ── Offline Banner ────────────────────────────────────────────────── */}
+      <AnimatePresence>
+        {isOffline && (
+          <motion.div
+            initial={{ y: -40, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: -40, opacity: 0 }}
+            transition={{ duration: 0.25 }}
+            className="fixed top-0 left-0 right-0 z-50 bg-rose-600 text-white text-center text-sm font-semibold py-2 flex items-center justify-center gap-2 shadow-lg"
+          >
+            <WifiOff size={15} />
+            Brak połączenia z internetem — tryb offline
+          </motion.div>
         )}
       </AnimatePresence>
 
@@ -266,7 +376,8 @@ export default function Layout() {
         'flex-1 overflow-auto',
         'p-5 md:p-8 lg:p-12',
         'pb-28 md:pb-12',
-        deviceType === 'mobile' && '!pb-28'
+        deviceType === 'mobile' && '!pb-28',
+        isOffline && 'pt-14 md:pt-16'
       )}>
         <motion.div
           key={location.pathname}

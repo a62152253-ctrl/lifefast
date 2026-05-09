@@ -1,25 +1,29 @@
 {
-  "firestore": {
-    "rules": "firestore-simple.rules"
-  },
+  "firestore": [
+    {
+      "database": "ai-studio-706c02b6-48a9-412e-967a-5b843ea607fd",
+      "rules": "firestore.rules",
+      "indexes": "firestore.indexes.json"
+    }
+  ],
   "hosting": {
     "public": "dist",
     "ignore": [
       "firebase.json",
       "**/.*",
       "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
     ]
   },
   "emulators": {
-    "auth": {
-      "port": 9099
-    },
-    "firestore": {
-      "port": 8080
-    },
-    "ui": {
-      "enabled": true
-    },
+    "auth": { "port": 9099 },
+    "firestore": { "port": 8080 },
+    "ui": { "enabled": true },
     "singleProjectMode": true
   }
 }

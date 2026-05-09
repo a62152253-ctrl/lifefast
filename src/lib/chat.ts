@@ -39,16 +39,13 @@ export interface ChatRoom {
 export async function sendMessage(content: string, toUid: string) {
   const user = auth.currentUser;
   if (!user || !content.trim()) {
-    console.error('sendMessage: No user or empty content');
     return false;
   }
 
-  // Create chat ID for consistent routing
   const chatId = [user.uid, toUid].sort().join('_');
-  console.log('Sending message:', { fromUid: user.uid, toUid, chatId, content: content.trim() });
 
   try {
-    const docRef = await addDoc(collection(db, 'messages'), {
+    await addDoc(collection(db, 'messages'), {
       fromUid: user.uid,
       toUid,
       chatId,
@@ -57,16 +54,12 @@ export async function sendMessage(content: string, toUid: string) {
       read: false,
       type: 'text'
     });
-    
-    console.log('Message sent successfully with ID:', docRef.id);
     return true;
   } catch (err) {
-    console.error('Failed to send message:', err);
     try {
       handleFirestoreError(err, OperationType.CREATE, 'messages');
-    } catch (handledErr) {
-      // handleFirestoreError throws, so we catch and log it
-      console.error('Handled Firestore error:', handledErr);
+    } catch {
+      // handleFirestoreError always rethrows
     }
     return false;
   }
@@ -85,15 +78,10 @@ export async function markMessageAsRead(messageId: string) {
 export function subscribeToChat(partnerUid: string, callback: (messages: ChatMessage[]) => void) {
   const user = auth.currentUser;
   if (!user || !partnerUid) {
-    console.error('subscribeToChat: No user or partnerUid');
     return () => {};
   }
 
-  console.log('Setting up chat subscription for:', { userUid: user.uid, partnerUid });
-
-  // Simple approach: Create a chat room ID and query by that
   const chatId = [user.uid, partnerUid].sort().join('_');
-  console.log('Using chatId:', chatId);
 
   const q = query(
     collection(db, 'messages'),
@@ -103,15 +91,9 @@ export function subscribeToChat(partnerUid: string, callback: (messages: ChatMes
   );
 
   return onSnapshot(q, (snap) => {
-    console.log('Chat snapshot received:', snap.docs.length, 'messages');
-    const messages = snap.docs.map(d => ({ 
-      id: d.id, 
-      ...d.data() 
-    } as ChatMessage));
+    const messages = snap.docs.map(d => ({ id: d.id, ...d.data() } as ChatMessage));
     callback(messages.reverse());
-  }, (error) => {
-    console.error('Chat subscription error:', error);
-  });
+  }, () => {});
 }
 
 export async function markAllMessagesAsRead(partnerUid: string) {

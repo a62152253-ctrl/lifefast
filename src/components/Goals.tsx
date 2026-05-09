@@ -1,28 +1,49 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   collection, addDoc, onSnapshot, query, where,
-  deleteDoc, doc, updateDoc, serverTimestamp,
+  deleteDoc, doc, updateDoc, serverTimestamp, orderBy
 } from 'firebase/firestore';
 import { format } from 'date-fns';
-import { pl } from 'date-fns/locale';
 import {
   Target, Plus, Trash2, CheckCircle2, Edit3,
-  Trophy, TrendingUp, Flame, Award, Star, Zap, Target as TargetIcon,
-  Calendar, Clock, Flag, Milestone
+  Trophy, TrendingUp, AlertTriangle
 } from 'lucide-react';
 import { auth, db } from '../lib/firebase';
 import { PageHeader, Button, Modal, FloatingActionButton } from './CommonUI';
 import { cn } from '../lib/utils';
+import { useToast } from '../context/ToastContext';
+import { useOffline } from '../context/OfflineContext';
+
+export interface Goal {
+  id: string;
+  title: string;
+  description?: string;
+  category: string;
+  targetDate?: string;
+  progress: number;
+  completed: boolean;
+  userId: string;
+  createdAt: any;
+  updatedAt?: any;
+  priority?: 'low' | 'medium' | 'high' | 'urgent';
+  tags?: string[];
+  isPrivate?: boolean;
+  estimatedHours?: number;
+}
 
 const CATEGORIES = [
-  { id: 'health',    label: 'Zdrowie',  color: 'bg-green-100 text-green-700 border-green-200' },
-  { id: 'work',      label: 'Praca',    color: 'bg-blue-100 text-blue-700 border-blue-200' },
-  { id: 'personal',  label: 'Osobiste', color: 'bg-purple-100 text-purple-700 border-purple-200' },
-  { id: 'finance',   label: 'Finanse',  color: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
-  { id: 'learning',  label: 'Rozwój',   color: 'bg-indigo-100 text-indigo-700 border-indigo-200' },
-  { id: 'social',    label: 'Social',   color: 'bg-pink-100 text-pink-700 border-pink-200' },
+  { id: 'health',    label: 'Zdrowie',   color: 'bg-green-100 text-green-700 border-green-200' },
+  { id: 'work',      label: 'Praca',     color: 'bg-blue-100 text-blue-700 border-blue-200' },
+  { id: 'personal',  label: 'Osobiste',  color: 'bg-purple-100 text-purple-700 border-purple-200' },
+  { id: 'finance',   label: 'Finanse',   color: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
+  { id: 'learning',  label: 'Rozwój',    color: 'bg-indigo-100 text-indigo-700 border-indigo-200' },
+  { id: 'social',    label: 'Social',    color: 'bg-pink-100 text-pink-700 border-pink-200' },
+  { id: 'adventure', label: 'Przygody',  color: 'bg-amber-100 text-amber-700 border-amber-200' },
+  { id: 'creative',  label: 'Twórczość', color: 'bg-rose-100 text-rose-700 border-rose-200' },
+  { id: 'spiritual', label: 'Duchowe',   color: 'bg-violet-100 text-violet-700 border-violet-200' },
+  { id: 'family',    label: 'Rodzina',   color: 'bg-cyan-100 text-cyan-700 border-cyan-200' },
 ];
 
 function getCat(id: string) {
@@ -31,97 +52,185 @@ function getCat(id: string) {
 
 export default function Goals() {
   const [user] = useAuthState(auth);
-  const [goals, setGoals] = useState<any[]>([]);
+  const [goals, setGoals] = useState<Goal[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [isOpen, setIsOpen] = useState(false);
-  const [editGoal, setEditGoal] = useState<any>(null);
+  const [editGoal, setEditGoal] = useState<Goal | null>(null);
+  const [searchText, setSearchText] = useState('');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'completed'>('all');
+  const { showToast } = useToast();
+  const { isOffline } = useOffline();
 
-  const [title, setTitle]           = useState('');
-  const [description, setDescription] = useState('');
-  const [category, setCategory]     = useState('personal');
-  const [targetDate, setTargetDate] = useState('');
-  const [progress, setProgress]     = useState(0);
-  const [motivationQuotes, setMotivationQuotes] = useState<string[]>([]);
-  const [dailyTip, setDailyTip] = useState('');
-  const [showStats, setShowStats] = useState(false);
+  const [title, setTitle]               = useState('');
+  const [description, setDescription]   = useState('');
+  const [category, setCategory]         = useState('personal');
+  const [targetDate, setTargetDate]     = useState('');
+  const [progress, setProgress]         = useState(0);
 
-  // Motivation system
+  // Fetch goals
   useEffect(() => {
-    const quotes = [
-      "Każdy krok przybliża Cię do celu! 🎯",
-      "Dyscyplina to klucz do sukcesu 💪",
-      "Jesteś silniejszy niż myślisz! 🌟",
-      "Dziś jest dzień na zwycięstwo! 🏆",
-      "Nigdy się nie poddawaj! 🚀"
-    ];
-    setMotivationQuotes(quotes);
-    setDailyTip(quotes[Math.floor(Math.random() * quotes.length)]);
+    if (!user) {
+      setGoals([]);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    const q = query(
+      collection(db, 'goals'),
+      where('userId', '==', user.uid),
+      orderBy('createdAt', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const data = snapshot.docs
+          .map(d => {
+            const v = d.data();
+            if (!v.title || !v.userId) return null;
+            return {
+              id: d.id,
+              title: String(v.title).trim(),
+              description: v.description ? String(v.description).trim() : undefined,
+              category: v.category || 'personal',
+              targetDate: v.targetDate,
+              progress: typeof v.progress === 'number' ? v.progress : 0,
+              completed: v.completed || false,
+              userId: v.userId,
+              createdAt: v.createdAt,
+              updatedAt: v.updatedAt,
+              priority: v.priority || 'medium',
+              tags: v.tags || [],
+              isPrivate: v.isPrivate || false,
+              estimatedHours: v.estimatedHours,
+            } as Goal;
+          })
+          .filter((g): g is Goal => g !== null);
+
+        setGoals(data);
+        setLoading(false);
+        setError(null);
+      },
+      (err) => {
+        setError(err.message || 'Błąd ładowania celów');
+        setGoals([]);
+        setLoading(false);
+        showToast({ type: 'error', message: 'Nie udało się załadować celów' });
+      }
+    );
+
+    return () => unsubscribe();
+  }, [user, showToast]);
+
+  const reset = useCallback(() => {
+    setTitle('');
+    setDescription('');
+    setCategory('personal');
+    setTargetDate('');
+    setProgress(0);
+    setEditGoal(null);
+    setError(null);
   }, []);
 
-  // Calculate statistics
-  const stats = useMemo(() => {
-    const totalGoals = goals.length;
-    const completedGoals = goals.filter(g => g.progress >= 100).length;
-    const inProgressGoals = goals.filter(g => g.progress > 0 && g.progress < 100).length;
-    const avgProgress = totalGoals > 0 ? goals.reduce((sum, g) => sum + (g.progress || 0), 0) / totalGoals : 0;
-    
-    return {
-      total: totalGoals,
-      completed: completedGoals,
-      inProgress: inProgressGoals,
-      avgProgress: Math.round(avgProgress),
-      completionRate: totalGoals > 0 ? Math.round((completedGoals / totalGoals) * 100) : 0
-    };
-  }, [goals]);
+  const openAdd = useCallback(() => { reset(); setIsOpen(true); }, [reset]);
 
-  useEffect(() => {
-    if (!user) return;
-    return onSnapshot(
-      query(collection(db, 'goals'), where('userId', '==', user.uid)),
-      (s) => setGoals(s.docs.map(d => ({ id: d.id, ...d.data() }))),
-    );
-  }, [user]);
-
-  const reset = () => {
-    setTitle(''); setDescription(''); setCategory('personal');
-    setTargetDate(''); setProgress(0); setEditGoal(null);
-  };
-
-  const openAdd  = () => { reset(); setIsOpen(true); };
-  const openEdit = (g: any) => {
+  const openEdit = useCallback((g: Goal) => {
     setEditGoal(g);
-    setTitle(g.title || '');
+    setTitle(g.title);
     setDescription(g.description || '');
     setCategory(g.category || 'personal');
     setTargetDate(g.targetDate || '');
     setProgress(g.progress || 0);
     setIsOpen(true);
-  };
+  }, []);
 
-  const save = async () => {
-    if (!title.trim() || !user) return;
-    const payload = {
-      title: title.trim(), description: description.trim(),
-      category, targetDate, progress, userId: user.uid,
-      completed: progress >= 100,
-    };
-    if (editGoal) {
-      await updateDoc(doc(db, 'goals', editGoal.id), payload);
-    } else {
-      await addDoc(collection(db, 'goals'), { ...payload, createdAt: serverTimestamp() });
+  const save = useCallback(async () => {
+    const trimmedTitle = title.trim();
+    if (!trimmedTitle || !user) {
+      if (!trimmedTitle) showToast({ type: 'warning', message: 'Wpisz tytuł celu' });
+      return;
     }
-    setIsOpen(false);
-    reset();
-  };
+    if (trimmedTitle.length < 2 || trimmedTitle.length > 100) {
+      showToast({ type: 'warning', message: 'Tytuł musi mieć od 2 do 100 znaków' });
+      return;
+    }
+    if (isOffline) {
+      showToast({ type: 'offline', message: 'Nie można zapisać celu w trybie offline' });
+      return;
+    }
 
-  const remove = (id: string) => deleteDoc(doc(db, 'goals', id));
+    const payload = {
+      title: trimmedTitle,
+      description: description.trim() || undefined,
+      category,
+      targetDate: targetDate || undefined,
+      progress,
+      completed: progress >= 100,
+      userId: user.uid,
+      updatedAt: serverTimestamp(),
+    };
 
-  const setGoalProgress = (id: string, pct: number) =>
-    updateDoc(doc(db, 'goals', id), { progress: pct, completed: pct >= 100 });
+    try {
+      if (editGoal) {
+        await updateDoc(doc(db, 'goals', editGoal.id), payload);
+        showToast({ type: 'success', message: 'Cel zaktualizowany' });
+      } else {
+        await addDoc(collection(db, 'goals'), { ...payload, createdAt: serverTimestamp() });
+        showToast({ type: 'success', message: 'Cel dodany' });
+      }
+      setIsOpen(false);
+      reset();
+    } catch (err: any) {
+      showToast({ type: 'error', message: 'Nie udało się zapisać celu' });
+    }
+  }, [title, description, category, targetDate, progress, user, editGoal, isOffline, showToast, reset]);
 
-  const active    = goals.filter(g => !g.completed);
-  const completed = goals.filter(g => g.completed);
-  const avgProgress = goals.length
-    ? Math.round(goals.reduce((a, g) => a + (g.progress || 0), 0) / goals.length)
+  const remove = useCallback(async (id: string) => {
+    if (isOffline) {
+      showToast({ type: 'offline', message: 'Nie można usunąć celu w trybie offline' });
+      return;
+    }
+    try {
+      await deleteDoc(doc(db, 'goals', id));
+      showToast({ type: 'success', message: 'Cel usunięty' });
+    } catch {
+      showToast({ type: 'error', message: 'Nie udało się usunąć celu' });
+    }
+  }, [isOffline, showToast]);
+
+  const setGoalProgress = useCallback(async (id: string, pct: number) => {
+    if (isOffline) {
+      showToast({ type: 'offline', message: 'Nie można zaktualizować postępu w trybie offline' });
+      return;
+    }
+    try {
+      await updateDoc(doc(db, 'goals', id), {
+        progress: pct,
+        completed: pct >= 100,
+        updatedAt: serverTimestamp(),
+      });
+    } catch {
+      showToast({ type: 'error', message: 'Nie udało się zaktualizować postępu' });
+    }
+  }, [isOffline, showToast]);
+
+  const filteredGoals = useMemo(() => {
+    return goals.filter(g => {
+      if (searchText && !g.title.toLowerCase().includes(searchText.toLowerCase())) return false;
+      if (filterStatus === 'active' && g.completed) return false;
+      if (filterStatus === 'completed' && !g.completed) return false;
+      return true;
+    });
+  }, [goals, searchText, filterStatus]);
+
+  const active    = filteredGoals.filter(g => !g.completed);
+  const completed = filteredGoals.filter(g => g.completed);
+  const avgProgress = filteredGoals.length
+    ? Math.round(filteredGoals.reduce((a, g) => a + g.progress, 0) / filteredGoals.length)
     : 0;
 
   return (
@@ -130,6 +239,17 @@ export default function Goals() {
       animate={{ opacity: 1, y: 0 }}
       className="space-y-8 pb-28"
     >
+      {/* Error display */}
+      {error && (
+        <div className="mb-6 p-4 bg-rose-50 border border-rose-200 rounded-xl">
+          <div className="flex items-center gap-3">
+            <AlertTriangle size={20} className="text-rose-600" />
+            <p className="text-sm text-rose-700 flex-1">{error}</p>
+            <button onClick={() => setError(null)} className="text-rose-600 hover:text-rose-800 text-sm font-medium">X</button>
+          </div>
+        </div>
+      )}
+
       <PageHeader
         title="Cele"
         subtitle={`${active.length} aktywnych celów`}
@@ -139,9 +259,9 @@ export default function Goals() {
       {/* Stats */}
       <div className="grid grid-cols-3 gap-4">
         {[
-          { value: active.length,    label: 'Aktywne',   color: 'text-indigo-600', icon: Target },
-          { value: completed.length, label: 'Ukończone', color: 'text-emerald-600', icon: Trophy },
-          { value: `${avgProgress}%`, label: 'Śr. postęp', color: 'text-amber-500', icon: TrendingUp },
+          { value: active.length,     label: 'Aktywne',    color: 'text-indigo-600',  icon: Target },
+          { value: completed.length,  label: 'Ukończone',  color: 'text-emerald-600', icon: Trophy },
+          { value: `${avgProgress}%`, label: 'Śr. postęp', color: 'text-amber-500',   icon: TrendingUp },
         ].map(({ value, label, color, icon: Icon }) => (
           <div key={label} className="bg-white rounded-[1.75rem] p-5 border border-gray-100 shadow-sm text-center">
             <Icon size={20} className={cn('mx-auto mb-2', color)} />
@@ -151,8 +271,34 @@ export default function Goals() {
         ))}
       </div>
 
+      {/* Search / filter */}
+      {goals.length > 0 && (
+        <div className="flex gap-2 flex-wrap">
+          <input
+            type="text"
+            placeholder="Szukaj..."
+            value={searchText}
+            onChange={e => setSearchText(e.target.value)}
+            className="input-base flex-1 min-w-[140px]"
+          />
+          {(['all', 'active', 'completed'] as const).map(s => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => setFilterStatus(s)}
+              className={cn(
+                'px-4 py-2 rounded-xl text-xs font-black transition-all',
+                filterStatus === s ? 'bg-indigo-600 text-white' : 'bg-gray-50 text-gray-400 hover:bg-gray-100'
+              )}
+            >
+              {s === 'all' ? 'Wszystkie' : s === 'active' ? 'Aktywne' : 'Ukończone'}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Empty state */}
-      {goals.length === 0 && (
+      {goals.length === 0 && !loading && (
         <div className="text-center py-20">
           <div className="w-20 h-20 bg-indigo-50 rounded-3xl flex items-center justify-center mx-auto mb-4">
             <Target size={40} className="text-indigo-300" />
@@ -192,9 +338,9 @@ export default function Goals() {
                         </span>
                         {daysLeft !== null && (
                           <span className={cn('text-[10px] font-bold',
-                            daysLeft < 0 ? 'text-rose-500' :
+                            daysLeft < 0  ? 'text-rose-500' :
                             daysLeft === 0 ? 'text-orange-500' :
-                            daysLeft < 7 ? 'text-amber-500' : 'text-gray-400'
+                            daysLeft < 7   ? 'text-amber-500' : 'text-gray-400'
                           )}>
                             {daysLeft < 0 ? 'Po terminie' : daysLeft === 0 ? 'Dziś!' : `${daysLeft} dni`}
                           </span>

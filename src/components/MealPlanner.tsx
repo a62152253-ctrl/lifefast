@@ -69,8 +69,8 @@ export default function MealPlanner() {
       const estimated = await estimateCalories(mealName);
       setKcal(estimated.toString());
       hapticFeedback('medium');
-    } catch (e) {
-      console.error(e);
+    } catch {
+      // fallback: keep user-entered kcal
     } finally {
       setIsEstimating(false);
     }
@@ -89,14 +89,14 @@ export default function MealPlanner() {
       });
       setIsModalOpen(false);
       hapticFeedback('medium');
-    } catch (e) { console.error(e); }
+    } catch { /* Firestore error handled by rules */ }
   };
 
   const deleteMeal = async (id: string) => {
     try {
       hapticFeedback('heavy');
       await deleteDoc(doc(db, 'meals', id));
-    } catch (e) { console.error(e); }
+    } catch { /* ignore */ }
   };
 
   const dayMeals = meals.filter(m => m.day === selectedDay);

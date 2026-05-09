@@ -54,8 +54,7 @@ export default function PartnerManager() {
       setStatus('success');
       setEmail('');
       setTimeout(() => setStatus('idle'), 3000);
-    } catch (e) {
-      console.error(e);
+    } catch {
       setStatus('error');
       setTimeout(() => setStatus('idle'), 3000);
     } finally {

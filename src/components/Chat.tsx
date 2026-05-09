@@ -64,13 +64,9 @@ export default function Chat() {
     try {
       const success = await sendMessage(messageContent, partnerUid);
       if (!success) {
-        // Restore message if sending failed
         setNewMessage(messageContent);
-        console.error('Failed to send message');
       }
-    } catch (error) {
-      console.error('Error sending message:', error);
-      // Restore message if sending failed
+    } catch {
       setNewMessage(messageContent);
     }
   };

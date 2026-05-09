@@ -1,8 +1,8 @@
-import { initializeApp, getApp } from 'firebase/app';
-import { 
-  getAuth, 
-  GoogleAuthProvider, 
-  signInWithPopup, 
+import { initializeApp, getApps } from 'firebase/app';
+import {
+  getAuth,
+  GoogleAuthProvider,
+  signInWithPopup,
   signOut,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
@@ -10,38 +10,41 @@ import {
 } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
-// Try to import from the path where the tool usually places the config
-// If it's missing, the app will show a warning in console if we handle it
-// or just fail to build, which is expected if Firebase isn't set up.
-import firebaseConfig from '../../firebase-applet-config.json';
+const firebaseConfig = {
+  apiKey: "AIzaSyAb8SPI8SKNsRiHsh0AQdTGoAaiTR22qkk",
+  authDomain: "ai-studio-applet-webapp-ff4dd.firebaseapp.com",
+  projectId: "ai-studio-applet-webapp-ff4dd",
+  storageBucket: "ai-studio-applet-webapp-ff4dd.firebasestorage.app",
+  messagingSenderId: "492152329442",
+  appId: "1:492152329442:web:fc4f7909ab18bf26ba7abb",
+};
 
-let app;
-try {
-  app = getApp();
-  console.log('Using existing Firebase app instance');
-} catch (error) {
-  try {
-    app = initializeApp(firebaseConfig);
-    console.log('Firebase initialized successfully with project:', firebaseConfig.projectId);
-  } catch (initError: any) {
-    console.error('Firebase initialization error:', initError);
-    // Create a minimal app for development
-    app = initializeApp({
-      apiKey: "AIzaSyDummyKeyForDevelopment",
-      authDomain: "lifeflow-demo.firebaseapp.com",
-      projectId: "lifeflow-demo"
-    }, 'demo-app');
-    console.warn('Using demo Firebase configuration');
-  }
-}
+const FIRESTORE_DB_ID = "ai-studio-706c02b6-48a9-412e-967a-5b843ea607fd";
 
-// Check if we're in development mode and use emulator if needed
-if (process.env.NODE_ENV === 'development') {
-  console.log('🔧 Development mode detected - checking Firebase rules...');
-}
+const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
+
 export const auth = getAuth(app);
-export const db = getFirestore(app, firebaseConfig?.firestoreDatabaseId || 'lifeflow-demo');
+export const db = getFirestore(app, FIRESTORE_DB_ID);
 export const googleProvider = new GoogleAuthProvider();
 
-export const loginWithGoogle = () => signInWithPopup(auth, googleProvider);
+export const loginWithGoogle = async () => {
+  try {
+    return await signInWithPopup(auth, googleProvider);
+  } catch (error: any) {
+    if (error.code !== 'auth/cancelled-popup-request') throw error;
+  }
+};
+
 export const logout = () => signOut(auth);
+
+export const signInWithEmail = (email: string, password: string) =>
+  signInWithEmailAndPassword(auth, email, password);
+
+export const signUpWithEmail = (email: string, password: string) =>
+  createUserWithEmailAndPassword(auth, email, password);
+
+export const resetPassword = (email: string) =>
+  sendPasswordResetEmail(auth, email);
+
+export const isFirebaseInitialized = true;
+export const firebaseInitError = null;

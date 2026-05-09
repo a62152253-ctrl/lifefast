@@ -1,12 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '../lib/firebase';
 import {
-  collection, onSnapshot, query, where, doc, setDoc, deleteDoc, updateDoc, serverTimestamp
+  collection, onSnapshot, query, where, doc, setDoc, deleteDoc, updateDoc, serverTimestamp, Timestamp, orderBy, limit
 } from 'firebase/firestore';
 import {
-  ChevronLeft, ChevronRight, Plus, Clock, Trash2, Pencil, Check, X, AlignLeft,
-  CalendarDays, List, Grid3x3, Eye, Bell, Calendar
+  ChevronLeft, ChevronRight, Plus, Clock, Trash2, Pencil, Check, X, AlignLeft, AlertTriangle
 } from 'lucide-react';
 import {
   format, addMonths, subMonths, startOfMonth, endOfMonth,
@@ -14,12 +13,33 @@ import {
   differenceInCalendarDays, parseISO
 } from 'date-fns';
 import { pl } from 'date-fns/locale';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion } from 'motion/react';
 import { Button, IconButton, PageHeader, Modal } from './CommonUI';
 import { handleFirestoreError, OperationType } from '../lib/db';
-import { hapticFeedback, cn } from '../lib/utils';
+import { cn } from '../lib/utils';
 import { useToast } from '../context/ToastContext';
 import { useOffline } from '../context/OfflineContext';
+
+export interface CalendarEvent {
+  id: string;
+  title: string;
+  description?: string;
+  date: string;
+  startTime?: string;
+  endTime?: string;
+  allDay: boolean;
+  category: string;
+  userId: string;
+  createdAt: Timestamp | Date;
+  updatedAt?: Timestamp | Date;
+  location?: string;
+  priority?: 'low' | 'medium' | 'high' | 'urgent';
+  tags?: string[];
+  isRecurring?: boolean;
+  recurringPattern?: 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom';
+  // stored as 'time' in Firestore for legacy compatibility
+  time?: string;
+}
 
 const EVENT_CATEGORIES = [
   { id: 'work',     label: 'Praca',     color: 'bg-indigo-500', dot: 'bg-indigo-400', light: 'bg-indigo-50 text-indigo-700 border-indigo-100' },
@@ -42,114 +62,196 @@ function relativeDay(dateStr: string): string {
   return format(parseISO(dateStr), 'd MMM', { locale: pl });
 }
 
-export default function Calendar() {
+export default function Calendar(): React.ReactElement {
   const [user] = useAuthState(auth);
-  const [currentDate, setCurrentDate] = useState(new Date());
+  const [currentDate, setCurrentDate]   = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const [events, setEvents] = useState<any[]>([]);
-  const [isAdding, setIsAdding] = useState(false);
-  const [viewMode, setViewMode] = useState<'month' | 'week' | 'list'>('month');
-  const [showNotifications, setShowNotifications] = useState(true);
+  const [events, setEvents]             = useState<CalendarEvent[]>([]);
+  const [loading, setLoading]           = useState(true);
+  const [error, setError]               = useState<string | null>(null);
+  const [isAdding, setIsAdding]         = useState(false);
   const { showToast } = useToast();
   const { isOffline } = useOffline();
-  const [editingEvent, setEditingEvent] = useState<any>(null);
-
-  const [eventTitle, setEventTitle] = useState('');
-  const [eventTime, setEventTime] = useState('12:00');
-  const [eventCategory, setEventCategory] = useState('work');
-  const [eventDesc, setEventDesc] = useState('');
-  const [allDay, setAllDay] = useState(false);
-
-  // deleteConfirm holds the id of the event pending confirmation
+  const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
+  const [eventTitle, setEventTitle]       = useState('');
+  const [eventTime, setEventTime]         = useState('12:00');
+  const [eventCategory, setEventCategory] = useState('work');
+  const [eventDesc, setEventDesc]         = useState('');
+  const [eventLocation, setEventLocation] = useState('');
+  const [allDay, setAllDay]               = useState(false);
+
+  const handleError = useCallback((err: any, operation: string) => {
+    const msg = err?.message || `Wystąpił błąd podczas ${operation}`;
+    setError(msg);
+    if (!isOffline) showToast({ type: 'error', message: msg });
+  }, [showToast, isOffline]);
+
   useEffect(() => {
-    if (!user) return;
-    const q = query(collection(db, 'calendarEvents'), where('userId', '==', user.uid));
-    return onSnapshot(q, snap => setEvents(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
-  }, [user]);
+    if (!user) { setEvents([]); setLoading(false); setError(null); return; }
 
-  const nextMonth = () => { hapticFeedback('light'); setCurrentDate(addMonths(currentDate, 1)); };
-  const prevMonth = () => { hapticFeedback('light'); setCurrentDate(subMonths(currentDate, 1)); };
+    setLoading(true);
+    setError(null);
 
-  const openAdd = () => {
+    try {
+      const q = query(
+        collection(db, 'calendarEvents'),
+        where('userId', '==', user.uid),
+        orderBy('date', 'asc'),
+        orderBy('time', 'asc'),
+        limit(1000)
+      );
+
+      const unsubscribe = onSnapshot(q, snapshot => {
+        try {
+          const eventsData = snapshot.docs.map(d => {
+            const data = d.data();
+            if (!data.title || !data.date || !data.userId) return null;
+            return {
+              id: d.id,
+              title: String(data.title).trim(),
+              description: data.description ? String(data.description).trim() : undefined,
+              date: data.date,
+              time: data.time || undefined,
+              allDay: data.allDay || false,
+              category: data.category || 'other',
+              userId: data.userId || user.uid,
+              createdAt: data.createdAt || serverTimestamp(),
+              updatedAt: data.updatedAt,
+              location: data.location,
+              isRecurring: data.isRecurring || false,
+              recurringPattern: data.recurringPattern,
+              priority: data.priority || 'medium',
+              tags: data.tags || [],
+            } as CalendarEvent;
+          }).filter((e): e is CalendarEvent => e !== null);
+
+          setEvents(eventsData);
+          setLoading(false);
+          setError(null);
+        } catch (err) {
+          handleError(err, 'processing calendar events');
+          setEvents([]);
+          setLoading(false);
+        }
+      }, err => {
+        handleError(err, 'fetching calendar events');
+        setEvents([]);
+        setLoading(false);
+        handleFirestoreError(err, OperationType.LIST, 'calendarEvents');
+      });
+
+      return () => unsubscribe();
+    } catch (err) {
+      handleError(err, 'setting up calendar listener');
+      setEvents([]);
+      setLoading(false);
+    }
+  }, [user, handleError]);
+
+  const nextMonth = useCallback(() => setCurrentDate(d => addMonths(d, 1)), []);
+  const prevMonth = useCallback(() => setCurrentDate(d => subMonths(d, 1)), []);
+
+  const openAdd = useCallback(() => {
     setEditingEvent(null);
-    setEventTitle(''); setEventTime('12:00'); setEventCategory('work'); setEventDesc(''); setAllDay(false);
+    setEventTitle('');
+    setEventTime('12:00');
+    setEventCategory('work');
+    setEventDesc('');
+    setEventLocation('');
+    setAllDay(false);
+    setError(null);
     setIsAdding(true);
-  };
+  }, []);
 
-  const openEdit = (ev: any) => {
+  const openEdit = useCallback((ev: CalendarEvent) => {
+    if (!ev) return;
     setEditingEvent(ev);
     setEventTitle(ev.title);
-    setEventTime(ev.time || '12:00');
+    setEventTime(ev.startTime || ev.time || '12:00');
     setEventCategory(ev.category || 'work');
     setEventDesc(ev.description || '');
+    setEventLocation(ev.location || '');
     setAllDay(ev.allDay || false);
+    setError(null);
     setIsAdding(true);
-  };
+  }, []);
 
-  const saveEvent = async (e: React.FormEvent) => {
+  const saveEvent = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!eventTitle.trim() || !user) {
-      if (!eventTitle.trim()) {
-        showToast({
-          type: 'warning',
-          message: 'Wpisz nazwę wydarzenia',
-        });
-      }
+
+    const trimmedTitle    = eventTitle.trim();
+    const trimmedDesc     = eventDesc.trim();
+    const trimmedLocation = eventLocation.trim();
+
+    if (!trimmedTitle || !user) {
+      if (!trimmedTitle) showToast({ type: 'warning', message: 'Wpisz nazwę wydarzenia' });
       return;
     }
-    
+    if (trimmedTitle.length < 2 || trimmedTitle.length > 100) {
+      showToast({ type: 'warning', message: 'Nazwa musi mieć od 2 do 100 znaków' });
+      return;
+    }
+    if (trimmedDesc && trimmedDesc.length > 500) {
+      showToast({ type: 'warning', message: 'Opis nie może przekraczać 500 znaków' });
+      return;
+    }
     if (isOffline) {
-      showToast({
-        type: 'offline',
-        message: 'Nie można zapisać wydarzenia w trybie offline',
-      });
+      showToast({ type: 'offline', message: 'Nie można zapisać wydarzenia w trybie offline' });
       return;
     }
-    
-    const payload = {
-      title: eventTitle.trim(),
-      time: allDay ? '' : eventTime,
-      allDay,
-      category: eventCategory,
-      description: eventDesc.trim(),
-      date: format(selectedDate, 'yyyy-MM-dd'),
-      userId: user.uid,
-    };
-    
+    if (!allDay && eventTime && !/^([01]?[0-9]|2[0-3]):([0-5][0-9])$/.test(eventTime)) {
+      showToast({ type: 'warning', message: 'Wpisz poprawną godzinę (HH:MM)' });
+      return;
+    }
+
     try {
+      const payload = {
+        title: trimmedTitle,
+        time: allDay ? '' : eventTime,
+        allDay,
+        category: eventCategory,
+        description: trimmedDesc || undefined,
+        location: trimmedLocation || undefined,
+        date: format(selectedDate, 'yyyy-MM-dd'),
+        userId: user.uid,
+        updatedAt: serverTimestamp(),
+      };
+
       if (editingEvent) {
-        await updateDoc(doc(db, 'calendarEvents', editingEvent.id), { ...payload, updatedAt: serverTimestamp() });
-        showToast({
-          type: 'success',
-          message: 'Wydarzenie zaktualizowane',
-        });
+        await updateDoc(doc(db, 'calendarEvents', editingEvent.id), payload);
+        showToast({ type: 'success', message: 'Wydarzenie zaktualizowane' });
       } else {
         const eventId = Math.random().toString(36).substring(7);
-        await setDoc(doc(db, 'calendarEvents', `event_${eventId}`), { ...payload, createdAt: serverTimestamp() });
-        showToast({
-          type: 'success',
-          message: 'Wydarzenie dodane',
+        await setDoc(doc(db, 'calendarEvents', `event_${eventId}`), {
+          ...payload,
+          createdAt: serverTimestamp(),
         });
+        showToast({ type: 'success', message: 'Wydarzenie dodane' });
       }
-      setIsAdding(false);
-      hapticFeedback('medium');
-    } catch (err) { 
-      console.error('Error saving event:', err);
-      handleFirestoreError(err, OperationType.CREATE, 'calendarEvents');
-      showToast({
-        type: 'error',
-        message: 'Nie udało się zapisać wydarzenia',
-      });
-    }
-  };
 
-  const deleteEvent = async (id: string) => {
-    hapticFeedback('heavy');
-    try { await deleteDoc(doc(db, 'calendarEvents', id)); setDeleteConfirm(null); } catch (err) { console.error(err); }
-  };
+      setIsAdding(false);
+      if (navigator.vibrate) navigator.vibrate(50);
+    } catch (err) {
+      handleError(err, 'saving event');
+    }
+  }, [eventTitle, eventDesc, eventLocation, eventTime, allDay, eventCategory, selectedDate, user, editingEvent, isOffline, showToast, handleError]);
+
+  const deleteEvent = useCallback(async (id: string) => {
+    if (isOffline) {
+      showToast({ type: 'offline', message: 'Nie można usunąć wydarzenia w trybie offline' });
+      return;
+    }
+    if (navigator.vibrate) navigator.vibrate(100);
+    try {
+      await deleteDoc(doc(db, 'calendarEvents', id));
+      setDeleteConfirm(null);
+      showToast({ type: 'success', message: 'Wydarzenie usunięte' });
+    } catch (err) {
+      handleError(err, 'deleting event');
+    }
+  }, [isOffline, showToast, handleError]);
 
   const monthStart   = startOfMonth(currentDate);
   const monthEnd     = endOfMonth(monthStart);
@@ -161,17 +263,28 @@ export default function Calendar() {
     .filter(e => e.date === format(selectedDate, 'yyyy-MM-dd'))
     .sort((a, b) => (a.time ?? '').localeCompare(b.time ?? ''));
 
+  const today = format(new Date(), 'yyyy-MM-dd');
+
   const upcomingEvents = events
-    .filter(e => {
-      try { return new Date(e.date) >= new Date(format(new Date(), 'yyyy-MM-dd')); } catch { return false; }
-    })
+    .filter(e => { try { return new Date(e.date) >= new Date(today); } catch { return false; } })
     .sort((a, b) => (a.date + (a.time || '')).localeCompare(b.date + (b.time || '')))
     .slice(0, 7);
 
-  const today = format(new Date(), 'yyyy-MM-dd');
-
   return (
     <div className="space-y-10 pb-28">
+      {error && (
+        <div className="mb-6 p-4 bg-rose-50 border border-rose-200 rounded-xl">
+          <div className="flex items-center gap-3">
+            <AlertTriangle size={20} className="text-rose-600" />
+            <div>
+              <h4 className="font-bold text-rose-900">Błąd</h4>
+              <p className="text-sm text-rose-700">{error}</p>
+            </div>
+            <button onClick={() => setError(null)} className="ml-auto text-rose-600 hover:text-rose-800 text-sm font-medium">X</button>
+          </div>
+        </div>
+      )}
+
       <PageHeader
         title="Kalendarz"
         subtitle="Twój widok czasu i nadchodzących wydarzeń."
@@ -223,7 +336,10 @@ export default function Calendar() {
                 <motion.button
                   key={day.toString()}
                   whileTap={{ scale: 0.9 }}
-                  onClick={() => { hapticFeedback('light'); setSelectedDate(day); }}
+                  onClick={() => {
+                    if (navigator.vibrate) navigator.vibrate(30);
+                    setSelectedDate(day);
+                  }}
                   className={cn(
                     'aspect-square relative flex flex-col items-center justify-center rounded-2xl transition-all duration-200',
                     !inMonth && 'opacity-20',
@@ -299,9 +415,7 @@ export default function Calendar() {
                             ) : ev.time && (
                               <p className="text-[10px] text-white/40">{ev.time}</p>
                             )}
-                            {ev.description && (
-                              <AlignLeft size={10} className="text-white/30" />
-                            )}
+                            {ev.description && <AlignLeft size={10} className="text-white/30" />}
                           </div>
                         </div>
                         <div className="opacity-0 group-hover:opacity-100 flex gap-1 transition-all">
@@ -342,7 +456,7 @@ export default function Calendar() {
               <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-4">Nadchodzące</p>
               <div className="space-y-3">
                 {upcomingEvents.map(ev => {
-                  const cat = getCategory(ev.category || 'other');
+                  const cat  = getCategory(ev.category || 'other');
                   const isEv = ev.date === today;
                   return (
                     <div key={ev.id} className="flex items-center gap-3">
@@ -401,15 +515,9 @@ export default function Calendar() {
                 <label className="flex items-center gap-2 cursor-pointer px-1">
                   <div
                     onClick={() => setAllDay(!allDay)}
-                    className={cn(
-                      'w-9 h-5 rounded-full transition-all relative',
-                      allDay ? 'bg-indigo-600' : 'bg-gray-200'
-                    )}
+                    className={cn('w-9 h-5 rounded-full transition-all relative', allDay ? 'bg-indigo-600' : 'bg-gray-200')}
                   >
-                    <div className={cn(
-                      'absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all',
-                      allDay ? 'left-4' : 'left-0.5'
-                    )} />
+                    <div className={cn('absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all', allDay ? 'left-4' : 'left-0.5')} />
                   </div>
                   <span className="text-xs text-gray-500 font-bold">Cały dzień</span>
                 </label>

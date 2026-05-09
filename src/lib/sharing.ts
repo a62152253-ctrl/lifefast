@@ -35,6 +35,11 @@ export interface UserProfile {
       habits: boolean;
       shopping: boolean;
       plans: boolean;
+      quietHours?: {
+        enabled: boolean;
+        start: string;
+        end: string;
+      };
     }
   }
 }
@@ -44,7 +49,12 @@ export const DEFAULT_SETTINGS = {
     push: true,
     habits: true,
     shopping: true,
-    plans: true
+    plans: true,
+    quietHours: {
+      enabled: false,
+      start: '22:00',
+      end: '08:00'
+    }
   }
 };
 

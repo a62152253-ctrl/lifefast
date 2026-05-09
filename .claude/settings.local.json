@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(where firebase *)",
+      "PowerShell(firebase --version 2>&1)",
+      "PowerShell(& \"C:\\\\ServBay\\\\bin\\\\firebase.cmd\" --version 2>&1)",
+      "PowerShell(npm root -g 2>&1)",
+      "PowerShell(npm prefix -g 2>&1)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3023)",
+      "Bash(npx firebase-tools *)",
+      "Bash(Get-Content \"c:\\\\XAMPP2\\\\htdocs\\\\lifefast\\\\src\\\\components\\\\Settings.tsx\")",
+      "Bash(Measure-Object -Line)",
+      "Bash(Select-Object -ExpandProperty Lines)",
+      "Bash(Get-Content \"c:\\\\XAMPP2\\\\htdocs\\\\lifefast\\\\src\\\\context\\\\LanguageContext.tsx\")",
+      "PowerShell(\\(Get-Content \"c:\\\\XAMPP2\\\\htdocs\\\\lifefast\\\\src\\\\components\\\\Settings.tsx\"\\).Count; \\(Get-Content \"c:\\\\XAMPP2\\\\htdocs\\\\lifefast\\\\src\\\\context\\\\LanguageContext.tsx\"\\).Count)",
+      "PowerShell(\\(Get-Content \"c:\\\\XAMPP2\\\\htdocs\\\\lifefast\\\\src\\\\components\\\\Dashboard.tsx\"\\).Count; \\(Get-Content \"c:\\\\XAMPP2\\\\htdocs\\\\lifefast\\\\src\\\\components\\\\Tasks.tsx\"\\).Count; \\(Get-Content \"c:\\\\XAMPP2\\\\htdocs\\\\lifefast\\\\src\\\\components\\\\Calendar.tsx\"\\).Count; \\(Get-Content \"c:\\\\XAMPP2\\\\htdocs\\\\lifefast\\\\src\\\\components\\\\Notes.tsx\"\\).Count; \\(Get-Content \"c:\\\\XAMPP2\\\\htdocs\\\\lifefast\\\\src\\\\components\\\\Shopping.tsx\"\\).Count; \\(Get-Content \"c:\\\\XAMPP2\\\\htdocs\\\\lifefast\\\\src\\\\components\\\\Goals.tsx\"\\).Count; \\(Get-Content \"c:\\\\XAMPP2\\\\htdocs\\\\lifefast\\\\src\\\\components\\\\Habits.tsx\"\\).Count; \\(Get-Content \"c:\\\\XAMPP2\\\\htdocs\\\\lifefast\\\\src\\\\components\\\\Budget.tsx\"\\).Count)"
+    ]
+  }
+}

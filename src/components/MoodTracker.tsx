@@ -70,8 +70,8 @@ export default function MoodTracker({ isMini = false }: { isMini?: boolean }) {
       setSelectedMood(null);
       setNote('');
       hapticFeedback('heavy');
-    } catch (e) {
-      console.error(e);
+    } catch {
+      // ignore Firestore errors
     } finally {
       setIsSaving(false);
     }

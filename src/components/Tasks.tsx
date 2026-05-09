@@ -3,90 +3,119 @@ import { auth, db } from '../lib/firebase';
 import { Button, Card, FloatingActionButton, IconButton, PageHeader, Badge, Modal } from './CommonUI';
 import {
   collection, addDoc, onSnapshot, query, where, deleteDoc, doc, updateDoc,
-  serverTimestamp, orderBy, limit
+  serverTimestamp, orderBy, limit, Timestamp
 } from 'firebase/firestore';
-import React, { useEffect, useState, useMemo } from 'react';
-import { Plus, CheckCircle2, Circle, Trash2, Flag, Search, Clock, BrainCircuit, Loader2, Tag, CalendarDays, X, Check, Filter, TrendingUp, AlertCircle, Zap, Target, ListFilter } from 'lucide-react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import {
+  Plus, Trash2, CheckCircle2, Circle, Clock, AlertTriangle,
+  Search, BrainCircuit, CalendarDays, Loader2, Check, X
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { handleFirestoreError, OperationType } from '../lib/db';
 import { hapticFeedback, cn } from '../lib/utils';
 import { format, isToday, isTomorrow, isPast, parseISO } from 'date-fns';
 import { pl } from 'date-fns/locale';
 import { brainstormTaskBreakdown } from '../services/geminiService';
-import { SkeletonTask, SkeletonList } from './SkeletonUI';
-import { NetworkError, DatabaseError } from './ErrorStates';
+import { SkeletonList } from './SkeletonUI';
+import { NetworkError } from './ErrorStates';
 import { useToast } from '../context/ToastContext';
 import { useOffline } from '../context/OfflineContext';
 
-type Priority = 'low' | 'medium' | 'high';
+export interface Task {
+  id: string;
+  title: string;
+  description?: string;
+  completed: boolean;
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  category: string;
+  dueDate?: string;
+  userId: string;
+  createdAt: Timestamp | Date;
+  updatedAt?: Timestamp | Date;
+  completedAt?: Timestamp | Date | null;
+  tags?: string[];
+  notes?: string;
+  recurring?: boolean;
+  recurringPattern?: 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom';
+}
+
+type Priority = 'low' | 'medium' | 'high' | 'urgent';
 
 const TASK_CATEGORIES = [
-  { id: 'work',    label: 'Praca',    color: 'bg-indigo-100 text-indigo-700' },
-  { id: 'home',    label: 'Dom',      color: 'bg-orange-100 text-orange-700' },
-  { id: 'health',  label: 'Zdrowie',  color: 'bg-emerald-100 text-emerald-700' },
-  { id: 'finance', label: 'Finanse',  color: 'bg-amber-100 text-amber-700' },
-  { id: 'personal',label: 'Osobiste', color: 'bg-violet-100 text-violet-700' },
-  { id: 'other',   label: 'Inne',     color: 'bg-gray-100 text-gray-600' },
+  { id: 'work',      label: 'Praca',       color: 'bg-indigo-100 text-indigo-700 border-indigo-200' },
+  { id: 'home',      label: 'Dom',         color: 'bg-orange-100 text-orange-700 border-orange-200' },
+  { id: 'health',    label: 'Zdrowie',     color: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
+  { id: 'finance',   label: 'Finanse',     color: 'bg-amber-100 text-amber-700 border-amber-200' },
+  { id: 'personal',  label: 'Osobiste',    color: 'bg-violet-100 text-violet-700 border-violet-200' },
+  { id: 'education', label: 'Edukacja',    color: 'bg-blue-100 text-blue-700 border-blue-200' },
+  { id: 'shopping',  label: 'Zakupy',      color: 'bg-purple-100 text-purple-700 border-purple-200' },
+  { id: 'travel',    label: 'Podróże',     color: 'bg-teal-100 text-teal-700 border-teal-200' },
+  { id: 'fitness',   label: 'Fitness',     color: 'bg-red-100 text-red-700 border-red-200' },
+  { id: 'social',    label: 'Społeczne',   color: 'bg-pink-100 text-pink-700 border-pink-200' },
+  { id: 'hobby',     label: 'Hobby',       color: 'bg-rose-100 text-rose-700 border-rose-200' },
+  { id: 'creative',  label: 'Twórcze',     color: 'bg-cyan-100 text-cyan-700 border-cyan-200' },
+  { id: 'volunteer', label: 'Wolontariat', color: 'bg-lime-100 text-lime-700 border-lime-200' },
+  { id: 'spiritual', label: 'Duchowe',     color: 'bg-indigo-100 text-indigo-700 border-indigo-200' },
+  { id: 'other',     label: 'Inne',        color: 'bg-gray-100 text-gray-700 border-gray-200' },
 ];
 
 function getCategoryStyle(id: string) {
-  return TASK_CATEGORIES.find(c => c.id === id)?.color ?? 'bg-gray-100 text-gray-600';
+  return TASK_CATEGORIES.find(c => c.id === id)?.color ?? 'bg-gray-100 text-gray-600 border-gray-200';
 }
 
 function dueDateLabel(dateStr: string): { label: string; urgent: boolean } {
   try {
     const d = parseISO(dateStr);
-    if (isToday(d)) return { label: 'Dziś', urgent: true };
-    if (isTomorrow(d)) return { label: 'Jutro', urgent: false };
-    if (isPast(d)) return { label: 'Po terminie!', urgent: true };
+    if (isToday(d))    return { label: 'Dziś',        urgent: true };
+    if (isTomorrow(d)) return { label: 'Jutro',       urgent: false };
+    if (isPast(d))     return { label: 'Po terminie!', urgent: true };
     return { label: format(d, 'd MMM', { locale: pl }), urgent: false };
   } catch { return { label: dateStr, urgent: false }; }
 }
 
 export default function Tasks() {
   const [user] = useAuthState(auth);
-  const [tasks, setTasks] = useState<any[]>([]);
+  const [tasks, setTasks]               = useState<Task[]>([]);
+  const [loading, setLoading]           = useState(true);
+  const [error, setError]               = useState<string | null>(null);
+  const [retryCount, setRetryCount]     = useState(0);
   const [newTaskTitle, setNewTaskTitle] = useState('');
-  const [priority, setPriority] = useState<Priority>('medium');
-  const [category, setCategory] = useState('all');
-  const [sortBy, setSortBy] = useState<'date' | 'priority' | 'name'>('date');
-  const [showAI, setShowAI] = useState(false);
-  const [aiSuggestion, setAiSuggestion] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [showCompleted, setShowCompleted] = useState(false);
-  const [newCategory, setNewCategory] = useState('other');
-  const [newDueDate, setNewDueDate] = useState('');
-  const [isAdding, setIsAdding] = useState(false);
-  const [filter, setFilter] = useState<'all' | 'active' | 'completed'>('all');
-  const [search, setSearch] = useState('');
-  const [partnerUid, setPartnerUid] = useState<string | null>(null);
+  const [priority, setPriority]         = useState<Priority>('medium');
+  const [newCategory, setNewCategory]   = useState('other');
+  const [newDueDate, setNewDueDate]     = useState('');
+  const [isAdding, setIsAdding]         = useState(false);
+  const [filter, setFilter]             = useState<'all' | 'active' | 'completed'>('all');
+  const [search, setSearch]             = useState('');
   const [aiLoadingTaskId, setAiLoadingTaskId] = useState<string | null>(null);
-  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [deleteConfirm, setDeleteConfirm]     = useState<string | null>(null);
   const { showToast } = useToast();
   const { isOffline } = useOffline();
 
-  useEffect(() => {
-    if (!user) return;
-    const unsubscribe = onSnapshot(doc(db, 'userProfiles', user.uid), snap => {
-      setPartnerUid(snap.exists() ? snap.data().partnerUid || null : null);
-    }, err => handleFirestoreError(err, OperationType.LIST, 'userProfiles'));
-    return unsubscribe;
-  }, [user]);
+  const handleError = useCallback((err: any, operation: string) => {
+    const msg = err?.message || `Wystąpił błąd podczas ${operation}`;
+    setError(msg);
+    if (!isOffline) showToast({ type: 'error', message: msg });
+  }, [showToast, isOffline]);
+
+  const retryLoad = useCallback(() => {
+    setRetryCount(prev => prev + 1);
+    setError(null);
+  }, []);
 
   useEffect(() => {
-    if (!user) return;
-    setIsLoading(true);
+    if (!user) { setTasks([]); setLoading(false); setError(null); return; }
+
+    setLoading(true);
     setError(null);
-    const userIds = partnerUid ? [user.uid, partnerUid] : [user.uid];
+
     const q = query(
       collection(db, 'tasks'),
-      where('userId', 'in', userIds),
+      where('userId', '==', user.uid),
       orderBy('createdAt', 'desc'),
       limit(200)
     );
-    return onSnapshot(q, snap => {
+
+    const unsubscribe = onSnapshot(q, snap => {
       try {
         const valid = snap.docs.map(d => {
           const data = d.data();
@@ -95,155 +124,251 @@ export default function Tasks() {
             id: d.id,
             title: String(data.title).trim(),
             completed: Boolean(data.completed),
-            priority: ['low', 'medium', 'high'].includes(data.priority) ? data.priority : 'medium',
+            priority: ['low', 'medium', 'high', 'urgent'].includes(data.priority) ? data.priority : 'medium',
             category: data.category || 'other',
             dueDate: data.dueDate || null,
             userId: data.userId,
-            createdAt: data.createdAt,
+            createdAt: data.createdAt || serverTimestamp(),
+            updatedAt: data.updatedAt,
             completedAt: data.completedAt,
-            parentTaskId: data.parentTaskId,
-          };
+            tags: data.tags || [],
+            notes: data.notes,
+            recurring: data.recurring || false,
+            recurringPattern: data.recurringPattern,
+          } as Task;
         }).filter(Boolean);
-        setTasks(valid as any[]);
-        setIsLoading(false);
+
+        setTasks(valid as Task[]);
+        setLoading(false);
         setError(null);
+        setRetryCount(0);
       } catch (err) {
-        console.error('Error processing tasks:', err);
-        setError('Failed to process tasks');
-        setIsLoading(false);
-        showToast({
-          type: 'error',
-          message: 'Nie udało się załadować zadań',
-        });
+        handleError(err, 'processing tasks');
+        setTasks([]);
+        setLoading(false);
       }
-    }, (err) => {
-      console.error('Error loading tasks:', err);
-      setError(err.message || 'Failed to load tasks');
-      setIsLoading(false);
+    }, err => {
+      handleError(err, 'loading tasks');
+      setTasks([]);
+      setLoading(false);
       handleFirestoreError(err, OperationType.LIST, 'tasks');
-      showToast({
-        type: 'error',
-        message: 'Nie udało się załadować zadań',
-      });
     });
-  }, [user, partnerUid, showToast]);
+
+    return unsubscribe;
+  }, [user, retryCount, handleError]);
 
   const addTask = async (e?: React.FormEvent) => {
     e?.preventDefault();
     const sanitized = newTaskTitle.trim().replace(/\s+/g, ' ');
-    if (!sanitized || sanitized.length < 2 || sanitized.length > 200 || !user) {
-      hapticFeedback('heavy'); 
-      showToast({
-        type: 'warning',
-        message: 'Tytuł zadania musi mieć od 2 do 200 znaków',
-      });
+
+    if (!sanitized || sanitized.length < 2) {
+      hapticFeedback('heavy');
+      showToast({ type: 'warning', message: sanitized ? 'Tytuł musi mieć co najmniej 2 znaki' : 'Tytuł zadania jest wymagany' });
       return;
     }
-    
+    if (sanitized.length > 200) {
+      hapticFeedback('heavy');
+      showToast({ type: 'warning', message: 'Tytuł nie może przekraczać 200 znaków' });
+      return;
+    }
+    if (!user) return;
+
     if (isOffline) {
       hapticFeedback('heavy');
-      showToast({
-        type: 'offline',
-        message: 'Nie można dodać zadania w trybie offline',
-      });
+      showToast({ type: 'offline', message: 'Nie można dodać zadania w trybie offline' });
       return;
     }
-    
-    const duplicate = tasks.find(t => t.title.toLowerCase() === sanitized.toLowerCase() && !t.completed);
-    if (duplicate) { 
-      hapticFeedback('heavy'); 
-      showToast({
-        type: 'warning',
-        message: 'Takie zadanie już istnieje',
-      });
-      return; 
+
+    const duplicate = tasks.find(t =>
+      t.title.toLowerCase() === sanitized.toLowerCase() && !t.completed && t.category === newCategory
+    );
+    if (duplicate) {
+      hapticFeedback('heavy');
+      showToast({ type: 'warning', message: 'Takie zadanie już istnieje w tej kategorii' });
+      return;
     }
-    
+
+    if (newDueDate && new Date(newDueDate) < new Date(format(new Date(), 'yyyy-MM-dd'))) {
+      hapticFeedback('heavy');
+      showToast({ type: 'warning', message: 'Data nie może być w przeszłości' });
+      return;
+    }
+
     try {
       await addDoc(collection(db, 'tasks'), {
-        title: sanitized, completed: false, priority,
-        category: newCategory, dueDate: newDueDate || null,
-        userId: user.uid, createdAt: serverTimestamp(),
+        title: sanitized,
+        completed: false,
+        priority,
+        category: newCategory,
+        dueDate: newDueDate || null,
+        userId: user.uid,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        tags: [],
+        notes: null,
+        recurring: false,
       });
-      setNewTaskTitle(''); setPriority('medium'); setNewCategory('other'); setNewDueDate('');
+
+      setNewTaskTitle('');
+      setPriority('medium');
+      setNewCategory('other');
+      setNewDueDate('');
       setIsAdding(false);
       hapticFeedback('medium');
-      showToast({
-        type: 'success',
-        message: 'Zadanie dodane pomyślnie',
-      });
-    } catch (error) {
+      showToast({ type: 'success', message: 'Zadanie dodane pomyślnie' });
+    } catch (err) {
       hapticFeedback('heavy');
-      handleFirestoreError(error, OperationType.CREATE, 'tasks');
-      showToast({
-        type: 'error',
-        message: 'Nie udało się dodać zadania',
-      });
+      handleError(err, 'adding task');
     }
   };
 
-  const toggleTask = async (task: any) => {
+  const toggleTask = async (task: Task) => {
     const newCompleted = !task.completed;
-    setTasks(prev => prev.map(t => t.id === task.id ? { ...t, completed: newCompleted } : t));
+
+    setTasks(prev => prev.map(t =>
+      t.id === task.id ? { ...t, completed: newCompleted, completedAt: newCompleted ? new Date() : null } : t
+    ));
     hapticFeedback('medium');
+
+    if (isOffline) {
+      setTasks(prev => prev.map(t =>
+        t.id === task.id ? { ...t, completed: task.completed, completedAt: task.completedAt } : t
+      ));
+      showToast({ type: 'offline', message: 'Nie można zaktualizować zadania w trybie offline' });
+      return;
+    }
+
     try {
       await updateDoc(doc(db, 'tasks', task.id), {
-        completed: newCompleted, updatedAt: serverTimestamp(),
+        completed: newCompleted,
+        updatedAt: serverTimestamp(),
         completedAt: newCompleted ? serverTimestamp() : null,
       });
-    } catch (error) {
-      setTasks(prev => prev.map(t => t.id === task.id ? { ...t, completed: task.completed } : t));
+      showToast({ type: 'success', message: newCompleted ? 'Zadanie ukończone!' : 'Zadanie ponownie otwarte' });
+    } catch (err) {
+      setTasks(prev => prev.map(t =>
+        t.id === task.id ? { ...t, completed: task.completed, completedAt: task.completedAt } : t
+      ));
       hapticFeedback('heavy');
-      handleFirestoreError(error, OperationType.UPDATE, `tasks/${task.id}`);
+      handleError(err, 'toggling task');
     }
   };
 
   const deleteTask = async (id: string) => {
+    if (isOffline) {
+      showToast({ type: 'offline', message: 'Nie można usunąć zadania w trybie offline' });
+      return;
+    }
+
+    const taskToDelete = tasks.find(t => t.id === id);
     setTasks(prev => prev.filter(t => t.id !== id));
     hapticFeedback('heavy');
     setDeleteConfirm(null);
+
     try {
       await deleteDoc(doc(db, 'tasks', id));
-    } catch (error) {
+      showToast({ type: 'success', message: 'Zadanie usunięte' });
+    } catch (err) {
+      if (taskToDelete) setTasks(prev => [...prev, taskToDelete]);
       hapticFeedback('heavy');
-      handleFirestoreError(error, OperationType.DELETE, `tasks/${id}`);
+      handleError(err, 'deleting task');
     }
   };
 
-  const handleAiBreakdown = async (task: any) => {
+  const handleAiBreakdown = async (task: Task) => {
     if (!task.title || task.title.length < 3 || aiLoadingTaskId === task.id) return;
+    if (isOffline) {
+      showToast({ type: 'offline', message: 'Nie można użyć AI w trybie offline' });
+      return;
+    }
+
     setAiLoadingTaskId(task.id);
     hapticFeedback('medium');
+
     try {
       const steps = await brainstormTaskBreakdown(task.title);
-      if (!steps || steps.length === 0 || steps.length > 10) throw new Error('Invalid AI response');
-      await Promise.all(steps.map(step =>
+      if (!steps || steps.length === 0) throw new Error('Invalid AI response');
+
+      const validSteps = steps.filter(s => typeof s === 'string' && s.trim().length > 0 && s.trim().length <= 100);
+      if (validSteps.length === 0) throw new Error('No valid steps generated');
+
+      await Promise.all(validSteps.map(step =>
         addDoc(collection(db, 'tasks'), {
-          title: `[${task.title}] ${step}`, completed: false, priority: 'low',
-          category: task.category || 'other', userId: user?.uid,
-          createdAt: serverTimestamp(), parentTaskId: task.id,
+          title: `[${task.title}] ${step.trim()}`,
+          completed: false,
+          priority: 'low',
+          category: task.category || 'other',
+          userId: user?.uid,
+          createdAt: serverTimestamp(),
+          parentTaskId: task.id,
+          updatedAt: serverTimestamp(),
+          tags: ['ai-generated'],
+          notes: `Wygenerowane z zadania: ${task.title}`,
         })
       ));
+
       hapticFeedback('heavy');
-    } catch (error) {
-      console.error('AI breakdown error:', error);
+      showToast({ type: 'success', message: `Utworzono ${validSteps.length} podzadań` });
+    } catch (err) {
       hapticFeedback('heavy');
+      handleError(err, 'AI task breakdown');
     } finally {
       setAiLoadingTaskId(null);
     }
   };
 
-  const filteredTasks = useMemo(() => tasks.filter(t => {
-    const matchesFilter = filter === 'all' || (filter === 'active' ? !t.completed : t.completed);
-    const matchesSearch = t.title.toLowerCase().includes(search.toLowerCase());
-    return matchesFilter && matchesSearch;
-  }), [tasks, filter, search]);
+  const completionRate = useMemo(() => {
+    if (tasks.length === 0) return 0;
+    return Math.round((tasks.filter(t => t.completed).length / tasks.length) * 100);
+  }, [tasks]);
+
+  const filteredTasks = useMemo(() => {
+    return tasks.filter(task => {
+      const matchesFilter =
+        filter === 'all' ? true :
+        filter === 'active' ? !task.completed :
+        task.completed;
+
+      const matchesSearch = !search ||
+        task.title.toLowerCase().includes(search.toLowerCase()) ||
+        (task.notes && task.notes.toLowerCase().includes(search.toLowerCase()));
+
+      return matchesFilter && matchesSearch;
+    });
+  }, [tasks, filter, search]);
 
   const activeCount = tasks.filter(t => !t.completed).length;
 
   return (
     <div className="space-y-10 pb-40">
-      <PageHeader title="Zadania" subtitle={`${activeCount} aktywnych priorytetów`} />
+      {error && (
+        <div className="mb-6 p-4 bg-rose-50 border border-rose-200 rounded-xl">
+          <div className="flex items-center gap-3">
+            <AlertTriangle size={20} className="text-rose-600" />
+            <div>
+              <h4 className="font-bold text-rose-900">Błąd</h4>
+              <p className="text-sm text-rose-700">{error}</p>
+            </div>
+            <button onClick={() => setError(null)} className="ml-auto text-rose-600 hover:text-rose-800 text-sm font-medium">X</button>
+          </div>
+        </div>
+      )}
+
+      <PageHeader
+        title="Zadania"
+        subtitle={`${activeCount} aktywnych priorytetów`}
+        action={
+          <div className="flex items-center gap-2">
+            <div className="text-right mr-4">
+              <p className="text-xs text-gray-500">Wykonanie</p>
+              <p className="text-lg font-bold text-indigo-600">{completionRate}%</p>
+            </div>
+            <Button variant="primary" onClick={() => setIsAdding(true)}>
+              <Plus size={20} className="mr-2" /> Nowe zadanie
+            </Button>
+          </div>
+        }
+      />
 
       <div className="flex flex-col lg:flex-row gap-8 items-start">
         {/* Sidebar */}
@@ -288,10 +413,10 @@ export default function Tasks() {
 
         {/* Task list */}
         <div className="flex-1 w-full space-y-3">
-          {isLoading ? (
+          {loading ? (
             <SkeletonList items={5} />
           ) : error ? (
-            <NetworkError onRetry={() => window.location.reload()} />
+            <NetworkError onRetry={retryLoad} />
           ) : (
             <AnimatePresence mode="popLayout">
               {filteredTasks.length > 0 ? filteredTasks.map((task, idx) => {
@@ -304,10 +429,11 @@ export default function Tasks() {
                     initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }}
                     transition={{ delay: idx * 0.04 }}
                   >
-                    <Card className={cn(
-                      'flex items-center gap-5 p-5 border-none shadow-[0_2px_16px_-4px_rgba(0,0,0,0.06)] cursor-pointer group hover:bg-indigo-50/30 transition-all duration-300',
-                      task.completed && 'opacity-60 bg-gray-50/50'
-                    )}
+                    <Card
+                      className={cn(
+                        'flex items-center gap-5 p-5 border-none shadow-[0_2px_16px_-4px_rgba(0,0,0,0.06)] cursor-pointer group hover:bg-indigo-50/30 transition-all duration-300',
+                        task.completed && 'opacity-60 bg-gray-50/50'
+                      )}
                       onClick={() => toggleTask(task)}
                     >
                       <div className={cn(
@@ -325,8 +451,8 @@ export default function Tasks() {
                           {task.title}
                         </h4>
                         <div className="flex items-center gap-2 mt-1 flex-wrap">
-                          <Badge variant={task.priority === 'high' ? 'danger' : task.priority === 'medium' ? 'primary' : 'success'}>
-                            {task.priority === 'high' ? 'Wysoki' : task.priority === 'medium' ? 'Średni' : 'Niski'}
+                          <Badge variant={task.priority === 'high' || task.priority === 'urgent' ? 'danger' : task.priority === 'medium' ? 'primary' : 'success'}>
+                            {task.priority === 'high' ? 'Wysoki' : task.priority === 'urgent' ? 'Pilny' : task.priority === 'medium' ? 'Średni' : 'Niski'}
                           </Badge>
                           {task.category && task.category !== 'other' && (
                             <span className={cn('text-[10px] px-2 py-0.5 rounded-full font-black', catStyle)}>
@@ -403,7 +529,6 @@ export default function Tasks() {
 
       <Modal isOpen={isAdding} onClose={() => setIsAdding(false)} title="Nowe zadanie">
         <form onSubmit={addTask} className="space-y-8">
-          {/* Title */}
           <div className="space-y-2">
             <label className="text-[10px] font-black uppercase text-gray-300 tracking-widest px-2">Opisz zadanie</label>
             <textarea
@@ -416,7 +541,6 @@ export default function Tasks() {
             />
           </div>
 
-          {/* Priority */}
           <div className="space-y-3">
             <label className="text-[10px] font-black uppercase text-gray-300 tracking-widest px-2 block">Priorytet</label>
             <div className="grid grid-cols-3 gap-3">
@@ -427,7 +551,7 @@ export default function Tasks() {
                   className={cn(
                     'py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all',
                     priority === p
-                      ? p === 'high' ? 'bg-rose-500 text-white shadow-xl shadow-rose-200'
+                      ? p === 'high'   ? 'bg-rose-500 text-white shadow-xl shadow-rose-200'
                         : p === 'medium' ? 'bg-[#1d1d1f] text-white shadow-xl shadow-gray-200'
                         : 'bg-emerald-500 text-white shadow-xl shadow-emerald-200'
                       : 'bg-gray-50 text-gray-400 hover:bg-gray-100'
@@ -439,7 +563,6 @@ export default function Tasks() {
             </div>
           </div>
 
-          {/* Category */}
           <div className="space-y-3">
             <label className="text-[10px] font-black uppercase text-gray-300 tracking-widest px-2 block">Kategoria</label>
             <div className="flex flex-wrap gap-2">
@@ -458,7 +581,6 @@ export default function Tasks() {
             </div>
           </div>
 
-          {/* Due date */}
           <div className="space-y-2">
             <label className="text-[10px] font-black uppercase text-gray-300 tracking-widest px-2 block">Termin (opcjonalnie)</label>
             <input

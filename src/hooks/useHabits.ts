@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { collection, query, where, onSnapshot, orderBy, addDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, orderBy, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from './useAuth';
 
@@ -41,8 +41,7 @@ export function useHabits() {
         setHabits(habitsData);
         setLoading(false);
       });
-    }, (error) => {
-      console.error('Error fetching habits:', error);
+    }, () => {
       setLoading(false);
     });
 
@@ -57,10 +56,9 @@ export function useHabits() {
       await addDoc(habitRef, {
         ...habitData,
         userId: user.uid,
-        createdAt: new Date()
+        createdAt: serverTimestamp()
       });
     } catch (error) {
-      console.error('Error adding habit:', error);
       throw error;
     }
   }, [user]);

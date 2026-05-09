@@ -1,213 +1,252 @@
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '../lib/firebase';
-import { Button, Card, FloatingActionButton, IconButton, PageHeader, ProgressCircle, Modal } from './CommonUI';
 import {
-  collection, addDoc, onSnapshot, query, where, deleteDoc, doc, updateDoc, serverTimestamp,
+  collection, addDoc, onSnapshot, query, where,
+  deleteDoc, doc, updateDoc, serverTimestamp, orderBy, Timestamp
 } from 'firebase/firestore';
-import React, { useEffect, useState, useMemo } from 'react';
-import { Plus, Zap, CheckCircle2, Trash2, Trophy, Sparkles, TrendingUp, BrainCircuit, Loader2, Flame, Target, Bell, Calendar, Award, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { handleFirestoreError, OperationType } from '../lib/db';
 import { format, startOfToday, subDays, isSameDay } from 'date-fns';
 import { pl } from 'date-fns/locale';
-import { hapticFeedback, cn } from '../lib/utils';
+import {
+  Plus, CheckCircle2, Trash2, Trophy, Sparkles,
+  TrendingUp, BrainCircuit, Loader2, Flame, Target
+} from 'lucide-react';
+import { Button, Card, FloatingActionButton, IconButton, PageHeader, ProgressCircle, Modal } from './CommonUI';
 import { getHabitCoaching } from '../services/geminiService';
+import { cn } from '../lib/utils';
 import { useToast } from '../context/ToastContext';
 import { useOffline } from '../context/OfflineContext';
 
+export interface Habit {
+  id: string;
+  name: string;
+  emoji: string;
+  category: string;
+  target: number;
+  userId: string;
+  completions: Record<string, boolean>;
+  streak: number;
+  bestStreak: number;
+  createdAt: Timestamp | Date;
+  updatedAt?: Timestamp | Date;
+  isActive?: boolean;
+  reminderTime?: string;
+  description?: string;
+}
+
 const HABIT_CATEGORIES = [
-  { id: 'health',  label: 'Zdrowie',  color: 'bg-emerald-100 text-emerald-700', dot: 'bg-emerald-400' },
-  { id: 'work',    label: 'Praca',    color: 'bg-indigo-100 text-indigo-700',   dot: 'bg-indigo-400' },
-  { id: 'sport',   label: 'Sport',    color: 'bg-red-100 text-red-700',         dot: 'bg-red-400' },
-  { id: 'mind',    label: 'Umysł',    color: 'bg-violet-100 text-violet-700',   dot: 'bg-violet-400' },
-  { id: 'finance', label: 'Finanse',  color: 'bg-amber-100 text-amber-700',     dot: 'bg-amber-400' },
-  { id: 'other',   label: 'Inne',     color: 'bg-gray-100 text-gray-600',       dot: 'bg-gray-300' },
+  { id: 'health',  label: 'Zdrowie', color: 'bg-emerald-100 text-emerald-700', dot: 'bg-emerald-400' },
+  { id: 'work',    label: 'Praca',   color: 'bg-indigo-100 text-indigo-700',   dot: 'bg-indigo-400' },
+  { id: 'sport',   label: 'Sport',   color: 'bg-red-100 text-red-700',         dot: 'bg-red-400' },
+  { id: 'mind',    label: 'Umysł',   color: 'bg-violet-100 text-violet-700',   dot: 'bg-violet-400' },
+  { id: 'finance', label: 'Finanse', color: 'bg-amber-100 text-amber-700',     dot: 'bg-amber-400' },
+  { id: 'other',   label: 'Inne',    color: 'bg-gray-100 text-gray-600',       dot: 'bg-gray-300' },
 ];
+
+const EMOJI_PRESETS = ['⚡','🏃','📚','💧','🧘','🍎','💪','🎯','🌿','😴','✍️','🎵','🧹','🥗','🏋️','🎨','🚴','🧠'];
 
 function getCategory(id: string) {
   return HABIT_CATEGORIES.find(c => c.id === id) ?? HABIT_CATEGORIES[HABIT_CATEGORIES.length - 1];
 }
 
-function calcConsecutiveStreak(completions: Record<string, boolean>): number {
+function calcStreak(completions: Record<string, boolean>): number {
   let streak = 0;
   const d = new Date();
   for (let i = 0; i < 365; i++) {
     const key = format(d, 'yyyy-MM-dd');
-    if (completions[key]) {
-      streak++;
-      d.setDate(d.getDate() - 1);
-    } else {
-      break;
-    }
+    if (completions[key]) { streak++; d.setDate(d.getDate() - 1); }
+    else break;
   }
   return streak;
 }
 
 export default function Habits() {
   const [user] = useAuthState(auth);
-  const [habits, setHabits] = useState<any[]>([]);
+  const [habits, setHabits] = useState<Habit[]>([]);
+  const [loading, setLoading] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
   const [newName, setNewName] = useState('');
   const [newEmoji, setNewEmoji] = useState('⚡');
   const [newCategory, setNewCategory] = useState('health');
   const [newTarget, setNewTarget] = useState(21);
-  const [showNotifications, setShowNotifications] = useState(true);
-  const [bestStreak, setBestStreak] = useState(0);
-  const [coachingMessage, setCoachingMessage] = useState('');
   const [coachingText, setCoachingText] = useState<Record<string, string>>({});
-  const [loadingHabitId, setLoadingHabitId] = useState<string | null>(null);
+  const [loadingCoachId, setLoadingCoachId] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [filterCat, setFilterCat] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState<'name' | 'streak' | 'created'>('created');
   const { showToast } = useToast();
   const { isOffline } = useOffline();
 
   const today = format(startOfToday(), 'yyyy-MM-dd');
   const last7Days = Array.from({ length: 7 }).map((_, i) => {
     const d = subDays(startOfToday(), 6 - i);
-    return { date: format(d, 'yyyy-MM-dd'), label: format(d, 'EEE', { locale: pl }), fullDate: d };
+    return { date: format(d, 'yyyy-MM-dd'), label: format(d, 'EEE', { locale: pl }) };
   });
 
-  const EMOJI_PRESETS = ['⚡','🏃','📚','💧','🧘','🍎','💪','🎯','🌿','😴','✍️','🎵','🧹','🥗','🏋️','🎨','🚴','🧠'];
-
+  // Fetch habits
   useEffect(() => {
-    if (!user) return;
-    const q = query(collection(db, 'habits'), where('userId', '==', user.uid));
-    return onSnapshot(q, snap => setHabits(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
-      err => handleFirestoreError(err, OperationType.LIST, 'habits'));
-  }, [user]);
+    if (!user) { setHabits([]); setLoading(false); return; }
 
-  useEffect(() => {
-    const maxStreak = Math.max(...habits.map(h => h.streak || 0), 0);
-    setBestStreak(maxStreak);
-  }, [habits]);
+    setLoading(true);
+    const q = query(
+      collection(db, 'habits'),
+      where('userId', '==', user.uid),
+      orderBy('createdAt', 'desc')
+    );
 
-  useEffect(() => {
-    if (habits.length > 0) {
-      const todayHabits = habits.filter(h => !h.completedToday);
-      if (todayHabits.length > 0) {
-        setCoachingMessage(`Masz jeszcze ${todayHabits.length} nawyków do zrobienia dziś! 💪`);
-      } else {
-        setCoachingMessage('Świetnie! Wszystkie nawyki na dziś zrobione! 🎉');
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const data = snapshot.docs
+          .map(d => {
+            const v = d.data();
+            if (!v.name || !v.userId) return null;
+            const completions = v.completions || {};
+            return {
+              id: d.id,
+              name: String(v.name).trim(),
+              emoji: v.emoji || '⚡',
+              category: v.category || 'other',
+              target: typeof v.target === 'number' ? v.target : 21,
+              userId: v.userId,
+              completions,
+              streak: calcStreak(completions),
+              bestStreak: v.bestStreak || 0,
+              createdAt: v.createdAt,
+              updatedAt: v.updatedAt,
+              isActive: v.isActive !== false,
+              reminderTime: v.reminderTime,
+              description: v.description,
+            } as Habit;
+          })
+          .filter((h): h is Habit => h !== null);
+        setHabits(data);
+        setLoading(false);
+      },
+      () => {
+        setLoading(false);
+        showToast({ type: 'error', message: 'Nie udało się załadować nawyków' });
       }
-    }
-  }, [habits]);
+    );
 
-  const handleHabitComplete = async (habitId: string) => {
-    try {
-      const habit = habits.find(h => h.id === habitId);
-      if (!habit || habit.completedToday) return;
+    return () => unsubscribe();
+  }, [user, showToast]);
 
-      await updateDoc(doc(db, 'habits', habitId), {
-        completedToday: true,
-        streak: (habit.streak || 0) + 1,
-        completions: {
-          ...habit.completions,
-          [format(new Date(), 'yyyy-MM-dd')]: true
-        }
-      });
-
-      hapticFeedback('medium');
-      showToast('Nawyk zakończony! 🔥', 'success');
-
-      // Get AI coaching
-      const coaching = await getHabitCoaching(habit.name, (habit.streak || 0) + 1);
-      if (coaching) {
-        setTimeout(() => showToast(coaching, 'info'), 1000);
-      }
-    } catch (err) {
-      handleFirestoreError(err, OperationType.UPDATE, 'habits');
-    }
-  };
-
-  const addHabit = async (e?: React.FormEvent) => {
+  const addHabit = useCallback(async (e?: React.FormEvent) => {
     e?.preventDefault();
-    
-    if (!newName.trim() || !user) {
-      if (!newName.trim()) {
-        showToast({
-          type: 'warning',
-          message: 'Wpisz nazwę nawyku',
-        });
-      }
+    const name = newName.trim();
+    if (!name || !user) {
+      if (!name) showToast({ type: 'warning', message: 'Wpisz nazwę nawyku' });
       return;
     }
-    
+    if (name.length < 2 || name.length > 50) {
+      showToast({ type: 'warning', message: 'Nazwa nawyku musi mieć od 2 do 50 znaków' });
+      return;
+    }
     if (isOffline) {
-      showToast({
-        type: 'offline',
-        message: 'Nie można dodać nawyku w trybie offline',
-      });
+      showToast({ type: 'offline', message: 'Nie można dodać nawyku w trybie offline' });
       return;
     }
-    
+    if (habits.some(h => h.name.toLowerCase() === name.toLowerCase())) {
+      showToast({ type: 'warning', message: 'Nawyk o tej nazwie już istnieje' });
+      return;
+    }
+
     try {
       await addDoc(collection(db, 'habits'), {
-        name: newName.trim(),
+        name,
         emoji: newEmoji,
         category: newCategory,
         target: newTarget,
         userId: user.uid,
         completions: {},
+        streak: 0,
+        bestStreak: 0,
+        isActive: true,
         createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
       });
-      setNewName(''); setNewEmoji('⚡'); setNewCategory('health'); setNewTarget(7); setIsAdding(false);
-      hapticFeedback('medium');
-      showToast({
-        type: 'success',
-        message: 'Nawyk dodany pomyślnie',
-      });
-    } catch (err) { 
-      console.error('Error adding habit:', err);
-      handleFirestoreError(err, OperationType.CREATE, 'habits');
-      showToast({
-        type: 'error',
-        message: 'Nie udało się dodać nawyku',
-      });
+      setNewName(''); setNewEmoji('⚡'); setNewCategory('health'); setNewTarget(21);
+      setIsAdding(false);
+      if (navigator.vibrate) navigator.vibrate(50);
+      showToast({ type: 'success', message: 'Nawyk dodany pomyślnie' });
+    } catch {
+      showToast({ type: 'error', message: 'Nie udało się dodać nawyku' });
     }
-  };
+  }, [newName, newEmoji, newCategory, newTarget, user, habits, isOffline, showToast]);
 
-  const toggleDay = async (habit: any, date: string) => {
-    const newCompletions = { ...(habit.completions || {}) };
-    const completing = !newCompletions[date];
-    if (newCompletions[date]) delete newCompletions[date];
-    else newCompletions[date] = true;
+  const toggleDay = useCallback(async (habit: Habit, date: string) => {
+    if (isOffline) {
+      showToast({ type: 'offline', message: 'Nie można zmienić statusu w trybie offline' });
+      return;
+    }
     try {
-      if (completing) hapticFeedback('medium');
-      await updateDoc(doc(db, 'habits', habit.id), { completions: newCompletions });
-    } catch (err) { handleFirestoreError(err, OperationType.UPDATE, `habits/${habit.id}`); }
-  };
+      const newCompletions = { ...(habit.completions || {}) };
+      if (newCompletions[date]) delete newCompletions[date];
+      else newCompletions[date] = true;
 
-  const deleteHabit = async (id: string) => {
-    hapticFeedback('heavy');
-    try { await deleteDoc(doc(db, 'habits', id)); setDeleteConfirm(null); } catch (err) { console.error(err); }
-  };
+      const newStreak = calcStreak(newCompletions);
+      await updateDoc(doc(db, 'habits', habit.id), {
+        completions: newCompletions,
+        streak: newStreak,
+        bestStreak: Math.max(habit.bestStreak || 0, newStreak),
+        updatedAt: serverTimestamp(),
+      });
+      if (navigator.vibrate) navigator.vibrate(50);
+    } catch {
+      showToast({ type: 'error', message: 'Nie udało się zmienić statusu nawyku' });
+    }
+  }, [isOffline, showToast]);
 
-  const handleGetCoaching = async (habit: any) => {
-    setLoadingHabitId(habit.id);
-    hapticFeedback('medium');
+  const deleteHabit = useCallback(async (id: string) => {
+    if (isOffline) {
+      showToast({ type: 'offline', message: 'Nie można usunąć nawyku w trybie offline' });
+      return;
+    }
     try {
-      const streak = calcConsecutiveStreak(habit.completions || {});
-      const advice = await getHabitCoaching(habit.name, streak);
-      setCoachingText(prev => ({ ...prev, [habit.id]: advice }));
-      hapticFeedback('heavy');
-    } catch (e) { console.error(e); }
-    finally { setLoadingHabitId(null); }
-  };
+      await deleteDoc(doc(db, 'habits', id));
+      setDeleteConfirm(null);
+      showToast({ type: 'success', message: 'Nawyk usunięty' });
+    } catch {
+      showToast({ type: 'error', message: 'Nie udało się usunąć nawyku' });
+    }
+  }, [isOffline, showToast]);
+
+  const handleGetCoaching = useCallback(async (habit: Habit) => {
+    if (loadingCoachId === habit.id) return;
+    setLoadingCoachId(habit.id);
+    try {
+      const advice = await getHabitCoaching(habit.name, calcStreak(habit.completions || {}));
+      if (advice) setCoachingText(prev => ({ ...prev, [habit.id]: advice }));
+      else showToast({ type: 'info', message: 'Nie udało się uzyskać porady AI' });
+    } catch {
+      showToast({ type: 'error', message: 'Nie udało się uzyskać porady AI' });
+    } finally {
+      setLoadingCoachId(null);
+    }
+  }, [loadingCoachId, showToast]);
 
   const completedToday = habits.filter(h => h.completions?.[today]).length;
-  const completionRate = habits.length ? Math.round((completedToday / habits.length) * 100) : 0;
+  const completionRate = habits.length > 0 ? Math.round((completedToday / habits.length) * 100) : 0;
+  const bestStreak     = Math.max(...habits.map(h => h.bestStreak || 0), 0);
 
-  const displayedHabits = useMemo(() =>
-    filterCat ? habits.filter(h => (h.category || 'other') === filterCat) : habits,
-    [habits, filterCat]
-  );
+  const displayedHabits = useMemo(() => {
+    const filtered = filterCat ? habits.filter(h => (h.category || 'other') === filterCat) : [...habits];
+    filtered.sort((a, b) => {
+      if (sortBy === 'name')   return a.name.localeCompare(b.name);
+      if (sortBy === 'streak') return (b.streak || 0) - (a.streak || 0);
+      return new Date(b.createdAt as any).getTime() - new Date(a.createdAt as any).getTime();
+    });
+    return filtered;
+  }, [habits, filterCat, sortBy]);
 
   return (
     <div className="space-y-10 pb-40">
       <PageHeader title="Dyscyplina" subtitle="Twoje nawyki definiują Twój sukces." />
 
       {/* Stats row */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <Card className="bg-[#1d1d1f] text-white border-none p-8 relative overflow-hidden">
           <Sparkles size={70} className="absolute -top-4 -right-4 opacity-10" />
           <p className="text-[10px] font-black uppercase tracking-[0.3em] text-indigo-400 mb-2">Aktywne</p>
@@ -224,6 +263,13 @@ export default function Habits() {
           </p>
         </Card>
 
+        <Card className="bg-emerald-600 text-white border-none p-8 relative overflow-hidden">
+          <Trophy size={70} className="absolute -top-4 -right-4 opacity-10" />
+          <p className="text-[10px] font-black uppercase tracking-[0.3em] text-emerald-200 mb-2">Najlepsza</p>
+          <h4 className="text-5xl font-black tracking-tighter mb-1">{bestStreak}</h4>
+          <p className="text-white/40 font-bold uppercase text-[10px] tracking-widest">seria dni</p>
+        </Card>
+
         <Button variant="white" className="h-full flex-col !items-start !p-8 group" onClick={() => setIsAdding(true)}>
           <div className="p-4 bg-gray-50 rounded-2xl mb-4 group-hover:bg-indigo-600 group-hover:text-white transition-all">
             <Plus size={28} />
@@ -233,33 +279,52 @@ export default function Habits() {
         </Button>
       </div>
 
-      {/* Category filter */}
+      {/* Category filter + sort */}
       {habits.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => setFilterCat(null)}
-            className={cn(
-              'px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-wide transition-all',
-              !filterCat ? 'bg-[#1d1d1f] text-white' : 'bg-white text-gray-400 border border-gray-100 hover:border-gray-200'
-            )}
-          >
-            Wszystkie
-          </button>
-          {HABIT_CATEGORIES.map(cat => (
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex flex-wrap gap-2">
             <button
               type="button"
-              key={cat.id}
-              onClick={() => setFilterCat(filterCat === cat.id ? null : cat.id)}
+              onClick={() => setFilterCat(null)}
               className={cn(
-                'flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-wide transition-all border',
-                filterCat === cat.id ? cat.color + ' border-current' : 'bg-white text-gray-400 border-gray-100 hover:border-gray-200'
+                'px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-wide transition-all',
+                !filterCat ? 'bg-[#1d1d1f] text-white' : 'bg-white text-gray-400 border border-gray-100 hover:border-gray-200'
               )}
             >
-              <div className={cn('w-1.5 h-1.5 rounded-full', cat.dot)} />
-              {cat.label}
+              Wszystkie
             </button>
-          ))}
+            {HABIT_CATEGORIES.map(cat => (
+              <button
+                type="button"
+                key={cat.id}
+                onClick={() => setFilterCat(filterCat === cat.id ? null : cat.id)}
+                className={cn(
+                  'flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-wide transition-all border',
+                  filterCat === cat.id ? cat.color + ' border-current' : 'bg-white text-gray-400 border-gray-100 hover:border-gray-200'
+                )}
+              >
+                <div className={cn('w-1.5 h-1.5 rounded-full', cat.dot)} />
+                {cat.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-gray-400">Sortuj:</span>
+            {(['created', 'name', 'streak'] as const).map(s => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => setSortBy(s)}
+                className={cn(
+                  'px-3 py-1 rounded-lg text-xs font-black transition-all',
+                  sortBy === s ? 'bg-indigo-100 text-indigo-600' : 'bg-white text-gray-400 hover:bg-gray-50'
+                )}
+              >
+                {s === 'created' ? 'Najnowsze' : s === 'name' ? 'Alfabetycznie' : 'Seria'}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
@@ -267,14 +332,20 @@ export default function Habits() {
       <div className="space-y-5">
         {displayedHabits.map((habit, idx) => {
           const completionCount = Object.keys(habit.completions || {}).length;
-          const streak = calcConsecutiveStreak(habit.completions || {});
+          const streak          = calcStreak(habit.completions || {});
           const isCompletedToday = !!habit.completions?.[today];
-          const target = habit.target || 30;
-          const progress = Math.min(100, Math.round((streak / target) * 100));
-          const cat = getCategory(habit.category || 'other');
+          const target          = habit.target || 30;
+          const progress        = Math.min(100, Math.round((streak / target) * 100));
+          const cat             = getCategory(habit.category || 'other');
 
           return (
-            <motion.div layout initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.04 }} key={habit.id}>
+            <motion.div
+              layout
+              key={habit.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: idx * 0.04 }}
+            >
               <Card className="p-0 overflow-hidden hover:border-[#1d1d1f] transition-all duration-500">
                 <div className="p-6 flex flex-col xl:flex-row xl:items-center justify-between gap-8">
 
@@ -300,7 +371,7 @@ export default function Habits() {
                         {streak > 0 && (
                           <div className="flex items-center gap-1 text-xs font-black text-orange-500">
                             <Flame size={13} className="text-orange-400" />
-                            {streak} {streak === 1 ? 'dzień' : streak < 5 ? 'dni' : 'dni'} z rzędu
+                            {streak} {streak === 1 ? 'dzień' : 'dni'} z rzędu
                           </div>
                         )}
                         <div className="flex items-center gap-1 text-xs font-black text-gray-400">
@@ -328,7 +399,7 @@ export default function Habits() {
                             'flex flex-col items-center justify-center w-10 h-14 rounded-2xl transition-all duration-300',
                             habit.completions?.[day.date]
                               ? 'bg-[#1d1d1f] text-white shadow-lg scale-105'
-                              : isSameDay(day.date, today)
+                              : isSameDay(new Date(day.date), new Date(today))
                                 ? 'bg-white border-2 border-indigo-400 text-indigo-600'
                                 : 'bg-white text-gray-200 hover:text-gray-500 shadow-sm'
                           )}
@@ -336,7 +407,7 @@ export default function Habits() {
                           <span className="text-[9px] font-black uppercase tracking-tighter">{day.label[0]}</span>
                           {habit.completions?.[day.date]
                             ? <CheckCircle2 size={15} className="text-emerald-400 mt-1" />
-                            : <div className={cn('w-1 h-1 rounded-full mt-1', isSameDay(day.date, today) ? 'bg-indigo-300' : 'bg-gray-200')} />
+                            : <div className={cn('w-1 h-1 rounded-full mt-1', isSameDay(new Date(day.date), new Date(today)) ? 'bg-indigo-300' : 'bg-gray-200')} />
                           }
                         </button>
                       ))}
@@ -344,18 +415,18 @@ export default function Habits() {
 
                     <div className="flex items-center gap-2">
                       <IconButton
-                        icon={loadingHabitId === habit.id ? Loader2 : BrainCircuit}
+                        icon={loadingCoachId === habit.id ? Loader2 : BrainCircuit}
                         title="Porady AI"
                         className={cn(
                           'bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white transition-all',
-                          loadingHabitId === habit.id && 'animate-spin'
+                          loadingCoachId === habit.id && 'animate-spin'
                         )}
                         onClick={() => handleGetCoaching(habit)}
                       />
                       {deleteConfirm === habit.id ? (
                         <div className="flex items-center gap-1">
-                          <button type="button" title="Potwierdź usunięcie" onClick={() => deleteHabit(habit.id)} className="px-3 py-2 bg-rose-500 text-white text-xs font-black rounded-xl hover:bg-rose-600">Usuń</button>
-                          <button type="button" title="Anuluj" onClick={() => setDeleteConfirm(null)} className="px-3 py-2 bg-gray-100 text-gray-600 text-xs font-black rounded-xl hover:bg-gray-200">Nie</button>
+                          <button type="button" onClick={() => deleteHabit(habit.id)} className="px-3 py-2 bg-rose-500 text-white text-xs font-black rounded-xl hover:bg-rose-600">Usuń</button>
+                          <button type="button" onClick={() => setDeleteConfirm(null)} className="px-3 py-2 bg-gray-100 text-gray-600 text-xs font-black rounded-xl hover:bg-gray-200">Nie</button>
                         </div>
                       ) : (
                         <IconButton icon={Trash2} title="Usuń nawyk" onClick={() => setDeleteConfirm(habit.id)} className="text-gray-300 hover:text-rose-500 hover:bg-rose-50" />
@@ -410,7 +481,7 @@ export default function Habits() {
           );
         })}
 
-        {habits.length === 0 && (
+        {habits.length === 0 && !loading && (
           <div className="text-center py-24 bg-white rounded-[3rem] border-2 border-dashed border-gray-100 flex flex-col items-center">
             <div className="w-20 h-20 bg-gray-50 text-gray-200 rounded-[2rem] flex items-center justify-center mb-6">
               <TrendingUp size={40} />

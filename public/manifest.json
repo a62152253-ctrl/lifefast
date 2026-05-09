@@ -1,11 +1,19 @@
 {
   "name": "LifeFlow",
   "short_name": "LifeFlow",
+  "description": "Twój osobisty asystent życiowy",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#4f46e5",
+  "orientation": "portrait",
   "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/192/3063/3063822.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
     {
       "src": "https://cdn-icons-png.flaticon.com/512/3063/3063822.png",
       "sizes": "512x512",

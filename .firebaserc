@@ -1,5 +1,6 @@
 {
   "projects": {
+    "default": "ai-studio-applet-webapp-ff4dd",
     "dev": "ai-studio-applet-webapp-ff4dd"
   },
   "targets": {},

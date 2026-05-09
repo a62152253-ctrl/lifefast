@@ -24,8 +24,7 @@ export async function getDashboardInsight(tasks: any[], habits: any[], userDispl
       contents: prompt,
     });
     return response.text || "Skoncentruj się na swoich najważniejszych celach dzisiaj. Każdy mały krok przybliża Cię do sukcesu.";
-  } catch (error) {
-    console.error("Gemini API Error:", error);
+  } catch {
     return "Skoncentruj się na swoich najważniejszych celach dzisiaj. Każdy mały krok przybliża Cię do sukcesu.";
   }
 }
@@ -47,8 +46,7 @@ export async function estimateCalories(mealName: string): Promise<number> {
     });
     const calories = parseInt(response.text.trim());
     return isNaN(calories) ? 400 : calories;
-  } catch (error) {
-    console.error("Calorie estimation error:", error);
+  } catch {
     return 400;
   }
 }
@@ -56,25 +54,20 @@ export async function estimateCalories(mealName: string): Promise<number> {
 export async function brainstormTaskBreakdown(taskTitle: string): Promise<string[]> {
   // Input validation and sanitization
   if (!taskTitle || typeof taskTitle !== 'string') {
-    console.warn('⚠️ Invalid task title provided to brainstormTaskBreakdown');
     return ["Zdefiniuj cel", "Zacznij działać", "Monitoruj postępy"];
   }
 
   const sanitizedTitle = taskTitle.trim().replace(/\s+/g, ' ');
-  
+
   if (sanitizedTitle.length < 3) {
-    console.warn('⚠️ Task title too short:', sanitizedTitle);
     return ["Uściśl cel", "Zbierz informacje", "Wykonaj zadanie"];
   }
 
   if (sanitizedTitle.length > 200) {
-    console.warn('⚠️ Task title too long:', sanitizedTitle.length);
     return ["Podziel na mniejsze części", "Zacznij od pierwszej", "Kontynuuj krok po kroku"];
   }
 
-  // Check API key
   if (!process.env.GEMINI_API_KEY) {
-    console.log('🔑 No Gemini API key - using fallback steps');
     return ["Zdefiniuj cel", "Zacznij działać", "Monitoruj postępy"];
   }
 
@@ -93,15 +86,12 @@ export async function brainstormTaskBreakdown(taskTitle: string): Promise<string
   `;
 
   try {
-    console.log(`🧠 Requesting task breakdown for: "${sanitizedTitle}"`);
-    
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: prompt,
     });
 
     if (!response.text) {
-      console.warn('⚠️ Empty response from Gemini API');
       return ["Przygotuj plan", "Zacznij działać", "Dokończ zadanie"];
     }
 
@@ -115,15 +105,12 @@ export async function brainstormTaskBreakdown(taskTitle: string): Promise<string
       .slice(0, 5); // Limit to 5 steps
 
     if (steps.length === 0) {
-      console.warn('⚠️ No valid steps generated from response:', response.text);
       return ["Przygotuj plan", "Zacznij działać", "Dokończ zadanie"];
     }
 
-    console.log(`✅ Generated ${steps.length} steps for task: "${sanitizedTitle}"`);
     return steps;
 
   } catch (error) {
-    console.error('❌ Error in brainstormTaskBreakdown:', error);
     
     // Categorized fallback based on error type
     if (error instanceof Error) {

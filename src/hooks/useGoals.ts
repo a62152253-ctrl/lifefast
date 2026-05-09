@@ -6,11 +6,15 @@ import { useAuth } from './useAuth';
 export function useGoals() {
   const { user } = useAuth();
   const [goalsCount, setGoalsCount] = useState(0);
+  const [goalsInProgress, setGoalsInProgress] = useState(0);
+  const [goalsCompleted, setGoalsCompleted] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!user) {
       setGoalsCount(0);
+      setGoalsInProgress(0);
+      setGoalsCompleted(0);
       setLoading(false);
       return;
     }
@@ -22,12 +26,17 @@ export function useGoals() {
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
+      const docs = snapshot.docs.map(d => d.data());
+      const completed = docs.filter(d => d.completed).length;
+      const inProgress = docs.filter(d => !d.completed).length;
       setGoalsCount(snapshot.size);
+      setGoalsInProgress(inProgress);
+      setGoalsCompleted(completed);
       setLoading(false);
     });
 
     return () => unsubscribe();
   }, [user]);
 
-  return { goalsCount, loading };
+  return { goalsCount, goalsInProgress, goalsCompleted, loading };
 }

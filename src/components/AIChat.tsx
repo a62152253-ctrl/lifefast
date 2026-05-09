@@ -1,30 +1,56 @@
+import { useEffect, useRef, useState } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
-import { auth, db } from '../lib/firebase';
-import { Button, Card, FloatingActionButton, IconButton, PageHeader, Modal } from './CommonUI';
-import {
-  collection, addDoc, onSnapshot, query, where, deleteDoc, doc, updateDoc, serverTimestamp, orderBy, getDocs, limit
-} from 'firebase/firestore';
-import React, { useEffect, useState, useRef } from 'react';
-import { Send, Bot, User, Sparkles, X, Minus, Plus } from 'lucide-react';
+import { auth } from '../lib/firebase';
+import { Button, IconButton } from './CommonUI';
+import { Send, Bot, User, Sparkles, X, Minus, Plus, Wand2, Lightbulb } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { getDashboardInsight } from '../services/geminiService';
+import { ASSISTANT_PROMPTS, runAssistantCommand, type ConversationTurn } from '../services/assistantService';
+import { useToast } from '../context/ToastContext';
+import { useOffline } from '../context/OfflineContext';
+import { patternLearner } from '../ai/learning/patternLearner';
+import { conversationMemory } from '../ai/memory/conversationMemory';
+
+interface SuggestedAction {
+  id: string;
+  type: string;
+  description: string;
+  data: any;
+}
 
 interface ChatMessage {
   id: string;
   content: string;
   sender: 'user' | 'ai';
-  timestamp: any;
-  type: 'command' | 'response' | 'info';
+  timestamp: Date;
+  type: 'command' | 'response';
+  suggestedActions?: SuggestedAction[];
 }
 
 export default function AIChat() {
   const [user] = useAuthState(auth);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [history, setHistory] = useState<ConversationTurn[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isMinimized, setIsMinimized] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [lastModeLabel, setLastModeLabel] = useState<'standard' | 'advanced'>('standard');
+  const [smartSuggestions, setSmartSuggestions] = useState<string[]>([]);
+  const [learnedPhrases, setLearnedPhrases] = useState<string[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const { showToast } = useToast();
+  const { isOffline } = useOffline();
+
+  // Załaduj nauczone frazy przy otwarciu
+  useEffect(() => {
+    if (user && isOpen) {
+      const phrases = patternLearner.getCommonPhrases(user.uid, 2);
+      setLearnedPhrases(phrases.slice(0, 5));
+      
+      const suggestions = patternLearner.getSuggestions(user.uid, inputMessage);
+      setSmartSuggestions(suggestions);
+    }
+  }, [user, isOpen, inputMessage]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -34,147 +60,66 @@ export default function AIChat() {
     scrollToBottom();
   }, [messages]);
 
-  const executeCommand = async (command: string): Promise<string> => {
-    const cmd = command.toLowerCase().trim();
-    
-    // Dodawanie notatki
-    if (cmd.includes('dodaj notatk') || cmd.includes('stwórz notatk')) {
-      const noteContent = command.replace(/dodaj notatk|stwórz notatk/i, '').trim();
-      if (noteContent) {
-        try {
-          await addDoc(collection(db, 'notes'), {
-            title: noteContent.substring(0, 50),
-            content: noteContent,
-            uid: user?.uid,
-            timestamp: serverTimestamp(),
-            color: 'yellow',
-            tags: ['AI'],
-            pinned: false
-          });
-          return `✅ Dodałem notatkę: "${noteContent}"`;
-        } catch (error) {
-          return `❌ Błąd dodawania notatki: ${error}`;
-        }
-      }
-      return 'Podaj treść notatki';
-    }
-
-    // Dodawanie zadania
-    if (cmd.includes('dodaj zadani') || cmd.includes('dodaj task')) {
-      const taskContent = command.replace(/dodaj zadani|dodaj task/i, '').trim();
-      if (taskContent) {
-        try {
-          await addDoc(collection(db, 'tasks'), {
-            title: taskContent,
-            uid: user?.uid,
-            timestamp: serverTimestamp(),
-            completed: false,
-            priority: 'medium',
-            category: 'other'
-          });
-          return `✅ Dodałem zadanie: "${taskContent}"`;
-        } catch (error) {
-          return `❌ Błąd dodawania zadania: ${error}`;
-        }
-      }
-      return 'Podaj treść zadania';
-    }
-
-    // Dodawanie nawyku
-    if (cmd.includes('dodaj nawyk') || cmd.includes('stwórz nawyk')) {
-      const habitContent = command.replace(/dodaj nawyk|stwórz nawyk/i, '').trim();
-      if (habitContent) {
-        try {
-          await addDoc(collection(db, 'habits'), {
-            name: habitContent,
-            uid: user?.uid,
-            timestamp: serverTimestamp(),
-            streak: 0,
-            completedToday: false,
-            frequency: 'daily'
-          });
-          return `✅ Dodałem nawyk: "${habitContent}"`;
-        } catch (error) {
-          return `❌ Błąd dodawania nawyku: ${error}`;
-        }
-      }
-      return 'Podaj nazwę nawyku';
-    }
-
-    // Pomoc
-    if (cmd.includes('pomoc') || cmd.includes('help') || cmd.includes('co potrafisz')) {
-      return `🤖 Jestem AI asystentem LifeFlow. Mogę:
-      
-📝 **Notatki**: "dodaj notatkę o psie"
-✅ **Zadania**: "dodaj zadanie kupić chleb"
-🎯 **Nawyki**: "dodaj nawyk ćwiczyć rano"
-📊 **Podsumowanie**: "pokaż podsumowanie dnia"
-
-Wystarczy napisać komendę naturalnym językiem!`;
-    }
-
-    // Podsumowanie
-    if (cmd.includes('podsumowanie') || cmd.includes('summary')) {
-      try {
-        const tasksSnapshot = await getDocs(query(collection(db, 'tasks'), where('uid', '==', user?.uid), limit(10)));
-        const notesSnapshot = await getDocs(query(collection(db, 'notes'), where('uid', '==', user?.uid), limit(10)));
-        const habitsSnapshot = await getDocs(query(collection(db, 'habits'), where('uid', '==', user?.uid), limit(10)));
-        
-        const tasks = tasksSnapshot.docs.length;
-        const notes = notesSnapshot.docs.length;
-        const habits = habitsSnapshot.docs.length;
-        
-        return `📊 Podsumowanie:
-📝 Notatki: ${notes}
-✅ Zadania: ${tasks}
-🎯 Nawyki: ${habits}`;
-      } catch (error) {
-        return `❌ Błąd pobierania podsumowania: ${error}`;
-      }
-    }
-
-    return 'Nie rozumiem komendy. Napisz "pomoc" aby zobaczyć dostępne opcje.';
-  };
-
-  const sendMessage = async () => {
-    if (!inputMessage.trim() || !user || isProcessing) return;
-
-    const userMessage: ChatMessage = {
-      id: Date.now().toString(),
-      content: inputMessage,
-      sender: 'user',
+  const appendAiMessage = (content: string) => {
+    const aiMessage: ChatMessage = {
+      id: `${Date.now()}-ai`,
+      content,
+      sender: 'ai',
       timestamp: new Date(),
-      type: 'command'
+      type: 'response',
     };
 
-    setMessages(prev => [...prev, userMessage]);
+    setMessages((prev) => [...prev, aiMessage]);
+  };
+
+  const sendMessage = async (presetMessage?: string) => {
+    const trimmedMessage = (presetMessage ?? inputMessage).trim();
+
+    if (!trimmedMessage || !user || isProcessing) return;
+
+    const userMessage: ChatMessage = {
+      id: `${Date.now()}-user`,
+      content: trimmedMessage,
+      sender: 'user',
+      timestamp: new Date(),
+      type: 'command',
+    };
+
+    setMessages((prev) => [...prev, userMessage]);
     setInputMessage('');
     setIsProcessing(true);
 
     try {
-      const response = await executeCommand(inputMessage);
-      
-      const aiMessage: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        content: response,
-        sender: 'ai',
-        timestamp: new Date(),
-        type: 'response'
-      };
+      const result = await runAssistantCommand(trimmedMessage, user, { isOffline, history });
+      setLastModeLabel(result.usedAdvancedPlanning ? 'advanced' : 'standard');
 
-      setMessages(prev => [...prev, aiMessage]);
+      // Update conversation history for next turn (keep last 20 turns to stay within context)
+      setHistory(prev => [
+        ...prev.slice(-19),
+        { role: 'user', text: trimmedMessage },
+        { role: 'model', text: result.reply },
+      ]);
+
+      appendAiMessage(result.reply);
+
+      if (result.performedActions.length > 0) {
+        showToast({
+          type: 'success',
+          message: `AI wykonalo ${result.performedActions.length} akcji.`,
+        });
+      }
     } catch (error) {
-      const errorMessage: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        content: `❌ Wystąpił błąd: ${error}`,
-        sender: 'ai',
-        timestamp: new Date(),
-        type: 'response'
-      };
-      setMessages(prev => [...prev, errorMessage]);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      appendAiMessage(`Nie udalo sie obsluzyc polecenia. ${errorMessage}`);
+      showToast({ type: 'error', message: 'AI nie moglo wykonac tej operacji.' });
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  const handlePromptClick = (prompt: string) => {
+    setInputMessage(prompt);
+    void sendMessage(prompt);
   };
 
   if (!isOpen) {
@@ -186,7 +131,7 @@ Wystarczy napisać komendę naturalnym językiem!`;
       >
         <Button
           onClick={() => setIsOpen(true)}
-          className="bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-full p-4 shadow-lg hover:shadow-xl transition-all"
+          className="bg-gradient-to-r from-[#ef6351] to-[#f5a65b] text-white rounded-full p-4 shadow-lg hover:shadow-xl transition-all"
         >
           <Bot className="w-6 h-6" />
         </Button>
@@ -198,114 +143,202 @@ Wystarczy napisać komendę naturalnym językiem!`;
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="fixed bottom-4 right-4 w-96 h-[500px] bg-white rounded-lg shadow-2xl z-50 flex flex-col border border-gray-200"
+      className="fixed bottom-4 right-4 z-50 flex h-[560px] w-[min(28rem,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-[1.75rem] border border-black/10 bg-white shadow-[0_32px_90px_rgba(18,20,23,0.22)]"
     >
-      {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-t-lg">
-        <div className="flex items-center gap-2">
-          <Bot className="w-5 h-5" />
-          <span className="font-semibold">LifeFlow AI</span>
-          <Sparkles className="w-4 h-4 animate-pulse" />
+      <div className="flex items-center justify-between border-b border-white/20 bg-[linear-gradient(135deg,#1d1d1f,#2f4858_60%,#ef6351)] px-4 py-4 text-white">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <Bot className="h-5 w-5" />
+            <span className="font-semibold tracking-tight">LifeFast Operator</span>
+            <Sparkles className="h-4 w-4 animate-pulse text-amber-300" />
+          </div>
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-white/75">
+            <span className="rounded-full bg-white/10 px-2 py-1">tasks</span>
+            <span className="rounded-full bg-white/10 px-2 py-1">notes</span>
+            <span className="rounded-full bg-white/10 px-2 py-1">shopping</span>
+            <span className="rounded-full bg-white/10 px-2 py-1">calendar</span>
+            <span className="rounded-full bg-white/10 px-2 py-1">
+              {lastModeLabel === 'advanced' ? 'AI planowanie' : 'tryb szybki'}
+            </span>
+          </div>
         </div>
+
         <div className="flex items-center gap-2">
           <IconButton
-            onClick={() => setIsMinimized(!isMinimized)}
+            onClick={() => setIsMinimized((value) => !value)}
             className="text-white hover:bg-white/20"
           >
-            {isMinimized ? <Plus className="w-4 h-4" /> : <Minus className="w-4 h-4" />}
+            {isMinimized ? <Plus className="h-4 w-4" /> : <Minus className="h-4 w-4" />}
           </IconButton>
           <IconButton
             onClick={() => setIsOpen(false)}
             className="text-white hover:bg-white/20"
           >
-            <X className="w-4 h-4" />
+            <X className="h-4 w-4" />
           </IconButton>
         </div>
       </div>
 
-      {/* Messages */}
       {!isMinimized && (
         <>
-          <div className="flex-1 overflow-y-auto p-4 space-y-3">
-            {messages.length === 0 && (
-              <div className="text-center text-gray-500 py-8">
-                <Bot className="w-12 h-12 mx-auto mb-2 text-blue-500" />
-                <p className="text-sm">Cześć! Jestem LifeFlow AI 😊</p>
-                <p className="text-xs mt-1">Napisz "pomoc" aby zobaczyć co mogę zrobić</p>
-              </div>
-            )}
-            
-            <AnimatePresence>
-              {messages.map((message) => (
-                <motion.div
-                  key={message.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0 }}
-                  className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
-                >
-                  <div
-                    className={`max-w-[80%] p-3 rounded-lg ${
-                      message.sender === 'user'
-                        ? 'bg-blue-500 text-white'
-                        : 'bg-gray-100 text-gray-800'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 mb-1">
-                      {message.sender === 'ai' ? (
-                        <Bot className="w-3 h-3" />
-                      ) : (
-                        <User className="w-3 h-3" />
-                      )}
-                      <span className="text-xs opacity-75">
-                        {message.timestamp.toLocaleTimeString()}
-                      </span>
+          <div className="flex-1 overflow-y-auto bg-[linear-gradient(180deg,rgba(249,247,244,0.96),rgba(255,255,255,1))] p-4">
+            {messages.length === 0 ? (
+              <div className="space-y-5 py-4">
+                <div className="rounded-[1.5rem] border border-[rgba(29,29,31,0.08)] bg-white p-5 shadow-sm">
+                  <div className="flex items-start gap-3">
+                    <div className="rounded-2xl bg-[rgba(239,99,81,0.12)] p-3 text-[var(--color-accent,#ef6351)]">
+                      <Wand2 className="h-5 w-5" />
                     </div>
-                    <p className="text-sm whitespace-pre-line">{message.content}</p>
-                  </div>
-                </motion.div>
-              ))}
-            </AnimatePresence>
-            
-            {isProcessing && (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="flex justify-start"
-              >
-                <div className="bg-gray-100 text-gray-800 p-3 rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <Bot className="w-3 h-3" />
-                    <div className="flex gap-1">
-                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" />
-                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }} />
-                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
+                    <div>
+                      <p className="font-semibold text-[#1d1d1f]">AI z pamięcią i uczeniem się</p>
+                      <p className="mt-1 text-sm leading-6 text-[#6e6e73]">
+                        Uczę się z każdej rozmowy! Pamiętam Twoje preferencje, wzorce i kontekst.
+                        Im więcej rozmawiamy, tym lepiej Cię rozumiem.
+                      </p>
                     </div>
                   </div>
                 </div>
-              </motion.div>
-            )}
+
+                {learnedPhrases.length > 0 && (
+                  <div>
+                    <div className="mb-3 flex items-center gap-2">
+                      <Lightbulb className="h-4 w-4 text-amber-500" />
+                      <p className="text-[11px] font-black uppercase tracking-[0.24em] text-[#6e6e73]">
+                        Twoje częste frazy
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {learnedPhrases.map((phrase) => (
+                        <button
+                          key={phrase}
+                          type="button"
+                          onClick={() => setInputMessage(phrase)}
+                          className="rounded-full border border-amber-200 bg-amber-50 px-3 py-2 text-left text-xs font-semibold text-amber-900 transition hover:-translate-y-0.5 hover:border-amber-300 hover:shadow-sm"
+                        >
+                          {phrase}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <p className="mb-3 text-[11px] font-black uppercase tracking-[0.24em] text-[#6e6e73]">
+                    Szybkie prompty
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {ASSISTANT_PROMPTS.map((prompt) => (
+                      <button
+                        key={prompt}
+                        type="button"
+                        onClick={() => handlePromptClick(prompt)}
+                        className="rounded-full border border-black/10 bg-white px-3 py-2 text-left text-xs font-semibold text-[#1d1d1f] transition hover:-translate-y-0.5 hover:border-black/20 hover:shadow-sm"
+                      >
+                        {prompt}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            <div className="space-y-3">
+              <AnimatePresence>
+                {messages.map((message) => (
+                  <motion.div
+                    key={message.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
+                  >
+                    <div
+                      className={`max-w-[86%] rounded-[1.25rem] px-4 py-3 shadow-sm ${
+                        message.sender === 'user'
+                          ? 'bg-[#1d1d1f] text-white'
+                          : 'border border-black/5 bg-white text-[#1d1d1f]'
+                      }`}
+                    >
+                      <div className="mb-2 flex items-center gap-2 text-xs opacity-70">
+                        {message.sender === 'ai' ? (
+                          <Bot className="h-3.5 w-3.5" />
+                        ) : (
+                          <User className="h-3.5 w-3.5" />
+                        )}
+                        <span>{message.timestamp.toLocaleTimeString()}</span>
+                      </div>
+                      <p className="whitespace-pre-line text-sm leading-6">{message.content}</p>
+                    </div>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+
+              {isProcessing ? (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex justify-start"
+                >
+                  <div className="rounded-[1.25rem] border border-black/5 bg-white px-4 py-3 shadow-sm">
+                    <div className="flex items-center gap-2">
+                      <Bot className="h-3.5 w-3.5 text-[#ef6351]" />
+                      <div className="flex gap-1">
+                        <div className="h-2 w-2 rounded-full bg-[#ef6351] animate-bounce" />
+                        <div
+                          className="h-2 w-2 rounded-full bg-[#f5a65b] animate-bounce"
+                          style={{ animationDelay: '0.1s' }}
+                        />
+                        <div
+                          className="h-2 w-2 rounded-full bg-[#2f4858] animate-bounce"
+                          style={{ animationDelay: '0.2s' }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              ) : null}
+            </div>
+
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Input */}
-          <div className="p-4 border-t border-gray-200">
+          <div className="border-t border-black/5 bg-white p-4">
+            <div className="mb-3 flex gap-2 overflow-x-auto pb-1">
+              {ASSISTANT_PROMPTS.slice(0, 3).map((prompt) => (
+                <button
+                  key={prompt}
+                  type="button"
+                  onClick={() => setInputMessage(prompt)}
+                  className="shrink-0 rounded-full bg-[#f5f5f7] px-3 py-1.5 text-[11px] font-semibold text-[#6e6e73] transition hover:bg-[#ececf0] hover:text-[#1d1d1f]"
+                >
+                  {prompt}
+                </button>
+              ))}
+            </div>
+
             <div className="flex gap-2">
               <input
                 type="text"
                 value={inputMessage}
-                onChange={(e) => setInputMessage(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
-                placeholder="Napisz komendę..."
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                onChange={(event) => setInputMessage(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    void sendMessage();
+                  }
+                }}
+                placeholder="Np. dodaj zadanie, zakupy i wydarzenie na jutro..."
+                className="flex-1 rounded-2xl border border-black/10 px-4 py-3 text-sm text-[#1d1d1f] outline-none transition focus:border-[#ef6351] focus:ring-4 focus:ring-[rgba(239,99,81,0.12)]"
                 disabled={isProcessing}
               />
               <Button
-                onClick={sendMessage}
+                onClick={() => {
+                  void sendMessage();
+                }}
                 disabled={!inputMessage.trim() || isProcessing}
-                className="bg-blue-500 text-white p-2"
+                className="bg-[#1d1d1f] p-3 text-white"
               >
-                <Send className="w-4 h-4" />
+                <Send className="h-4 w-4" />
               </Button>
             </div>
           </div>

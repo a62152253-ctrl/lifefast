@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import {
-  collection, query, where, onSnapshot, orderBy, limit, Timestamp, QuerySnapshot, DocumentData
+  collection, query, where, onSnapshot, orderBy, limit, Timestamp, QuerySnapshot as FirestoreQuerySnapshot, DocumentData
 } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import { format, isToday, isPast, isTomorrow, startOfDay, differenceInDays } from 'date-fns';
@@ -19,10 +19,19 @@ export interface SmartNotification {
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
-function toDate(val: any): Date | null {
+function toDate(val: unknown): Date | null {
   if (!val) return null;
   if (val instanceof Timestamp) return val.toDate();
   if (val instanceof Date) return val;
+  if (
+    typeof val === 'object' &&
+    val !== null &&
+    'toDate' in val &&
+    typeof (val as { toDate?: unknown }).toDate === 'function'
+  ) {
+    return (val as { toDate: () => Date }).toDate();
+  }
+  if (typeof val !== 'string' && typeof val !== 'number') return null;
   const d = new Date(val);
   return isNaN(d.getTime()) ? null : d;
 }
@@ -30,7 +39,7 @@ function toDate(val: any): Date | null {
 function useCollection<T>(
   collectionName: string,
   userId: string | undefined,
-  extraConstraints: any[] = [],
+  extraConstraints: unknown[] = [],
   mapper: (id: string, data: DocumentData) => T | null,
   ownerField = 'userId'
 ): T[] {
@@ -45,9 +54,12 @@ function useCollection<T>(
       ...extraConstraints
     );
 
-    const unsub = onSnapshot(q, (snap: QuerySnapshot<DocumentData>) => {
+    const unsub = onSnapshot(q, (snap: FirestoreQuerySnapshot<DocumentData>) => {
       const data = snap.docs
-        .map((d: any) => mapper(d.id, d.data()))
+        .map((d: unknown) => {
+          const doc = d as { id: string; data: () => DocumentData };
+          return mapper(doc.id, doc.data());
+        })
         .filter((x: T | null): x is T => x !== null);
       setItems(data);
     }, () => {});

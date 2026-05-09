@@ -8,7 +8,7 @@ import {
   FileJson, FileSpreadsheet, BrainCircuit, Camera, Pencil, AlertTriangle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { collection, query, where, onSnapshot, doc, getDocs, setDoc, serverTimestamp } from 'firebase/firestore';
 import { sendInvite, acceptInvite, rejectInvite, disconnectPartner, updateUserSettings, DEFAULT_SETTINGS, Invite, UserProfile } from '../lib/sharing';
 import { useDevice } from '../context/DeviceContext';
@@ -40,9 +40,12 @@ const AVATAR_COLORS = [
   { id: 'lime',    cls: 'bg-lime-500',    label: 'Limonkowy',  hex: '#84cc16' },
 ];
 
-function getAvatarColor(id: string) {
-  return AVATAR_COLORS.find(c => c.id === id) ?? AVATAR_COLORS[0];
-}
+  // Memoized avatar colors
+  const avatarColorsMemo = useMemo(() => AVATAR_COLORS, []);
+  
+  const getAvatarColor = useCallback((id: string) => {
+    return avatarColorsMemo.find(c => c.id === id) ?? avatarColorsMemo[0];
+  }, [avatarColorsMemo]);
 
 export default function Settings() {
   const [user] = useAuthState(auth);

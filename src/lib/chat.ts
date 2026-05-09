@@ -109,8 +109,8 @@ export async function markAllMessagesAsRead(partnerUid: string) {
     );
     
     const snapshot = await getDocs(q);
-    const updatePromises = snapshot.docs.map(doc => 
-      updateDoc(doc.ref, { read: true })
+    const updatePromises = snapshot.docs.map(snapshotDoc => 
+      updateDoc(doc(db, 'messages', snapshotDoc.id), { read: true })
     );
     
     await Promise.all(updatePromises);

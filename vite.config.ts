@@ -19,6 +19,9 @@ export default defineConfig(({ mode }) => {
       hmr: process.env.DISABLE_HMR !== 'true',
     },
     build: {
+      target: 'es2020',
+      minify: 'esbuild',
+      sourcemap: false,
       chunkSizeWarningLimit: 600,
       rollupOptions: {
         output: {
@@ -31,8 +34,17 @@ export default defineConfig(({ mode }) => {
             'vendor-lucide': ['lucide-react'],
             'vendor-gemini': ['@google/genai'],
           },
+          chunkFileNames: 'assets/[name]-[hash].js',
         },
       },
+    },
+    optimizeDeps: {
+      include: ['react', 'react-dom', 'motion'],
+    },
+    esbuild: {
+      target: 'es2020',
+      treeShaking: true,
+      drop: ['console', 'debugger'],
     },
   };
 });

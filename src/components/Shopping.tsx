@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useMemo, useCallback, memo } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '../lib/firebase';
 import { Button, FloatingActionButton, PageHeader, Modal } from './CommonUI';
@@ -10,6 +10,7 @@ import { Plus, ShoppingCart, X, CheckCircle2, RefreshCw, CheckCheck, AlertTriang
 import { motion, AnimatePresence } from 'motion/react';
 import { handleFirestoreError, OperationType } from '../lib/db';
 import { hapticFeedback, cn } from '../lib/utils';
+import { debounce } from '../lib/performance';
 import { useToast } from '../context/ToastContext';
 import { useOffline } from '../context/OfflineContext';
 
@@ -67,10 +68,18 @@ export default function Shopping() {
   const [isAdding, setIsAdding] = useState(false);
   const [newItemName, setNewItemName] = useState('');
   const [quantity, setQuantity] = useState('1');
-  const [selectedCat, setSelectedCat] = useState('inne');
+  const [selectedCat, setSelectedCat] = useState('warzywa');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('');
 
   const { showToast } = useToast();
   const { isOffline } = useOffline();
+
+  // Debounced search
+  const debouncedSearch = useMemo(
+    () => debounce((term: string) => setSearchTerm(term), 300),
+    []
+  );
 
   // Error handler
   const handleError = useCallback((err: any, operation: string) => {
@@ -274,15 +283,36 @@ export default function Shopping() {
     }
   }, [items, isOffline, showToast, handleError]);
 
-  // Derived counts
-  const checkedCount = useMemo(() => items.filter(i => i.checked).length, [items]);
-  const uncheckedCount = useMemo(() => items.filter(i => !i.checked).length, [items]);
+  // Derived counts - optimized with for loops
+  const { checkedCount, uncheckedCount } = useMemo(() => {
+    let checked = 0, unchecked = 0;
+    for (const item of items) {
+      if (item.checked) checked++;
+      else unchecked++;
+    }
+    return { checkedCount: checked, uncheckedCount: unchecked };
+  }, [items]);
+  
   const completionRate = items.length > 0 ? Math.round((checkedCount / items.length) * 100) : 0;
 
-  // Group unchecked items by category
-  const grouped = CATEGORIES
-    .map(cat => ({ cat, catItems: items.filter(i => !i.checked && (i.category || 'inne') === cat.id) }))
-    .filter(g => g.catItems.length > 0);
+  // Group unchecked items by category - optimized
+  const grouped = useMemo(() => {
+    const result: { cat: typeof CATEGORIES[0]; catItems: ShoppingItem[] }[] = [];
+    
+    for (const cat of CATEGORIES) {
+      const catItems: ShoppingItem[] = [];
+      for (const item of items) {
+        if (!item.checked && (item.category || 'inne') === cat.id) {
+          catItems.push(item);
+        }
+      }
+      if (catItems.length > 0) {
+        result.push({ cat, catItems });
+      }
+    }
+    
+    return result;
+  }, [items]);
 
   return (
     <div className="space-y-8 pb-28">
@@ -389,34 +419,12 @@ export default function Shopping() {
                   <div className="space-y-2">
                     <AnimatePresence>
                       {catItems.map(item => (
-                        <motion.div
+                        <ShoppingListItem
                           key={item.id}
-                          layout
-                          initial={{ opacity: 0, x: -8 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          exit={{ opacity: 0, x: 8 }}
-                          className="bg-white rounded-2xl border border-gray-100 px-5 py-4 flex items-center gap-4 group cursor-pointer hover:border-indigo-100 transition-all"
-                          onClick={() => toggleItem(item)}
-                        >
-                          <div className={cn(
-                            'w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-all',
-                            'border-gray-200 group-hover:border-indigo-400'
-                          )}>
-                            <CheckCircle2 size={14} className="text-white" />
-                          </div>
-                          <span className="flex-1 font-bold text-[#1d1d1f] text-sm">{item.name}</span>
-                          {item.quantity && item.quantity !== '1' && (
-                            <span className="text-[10px] font-black text-gray-400 bg-gray-50 px-2 py-1 rounded-lg">{item.quantity}</span>
-                          )}
-                          <button
-                            type="button"
-                            aria-label={`Usuń ${item.name}`}
-                            onClick={e => { e.stopPropagation(); deleteItem(item.id); }}
-                            className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-rose-50 hover:text-rose-500 text-gray-300 transition-all"
-                          >
-                            <X size={14} />
-                          </button>
-                        </motion.div>
+                          item={item}
+                          onToggle={toggleItem}
+                          onDelete={deleteItem}
+                        />
                       ))}
                     </AnimatePresence>
                   </div>
@@ -510,5 +518,55 @@ export default function Shopping() {
         </>
       )}
     </div>
+  );
+}
+
+function ShoppingListItem({
+  item,
+  onToggle,
+  onDelete,
+}: {
+  item: ShoppingItem;
+  onToggle: (item: ShoppingItem) => void;
+  onDelete: (id: string) => void;
+}) {
+  const category = getCategory(item.category || 'inne');
+
+  return (
+    <motion.div
+      layout
+      className="group flex items-center gap-4 rounded-[1.65rem] border border-gray-100 bg-white px-5 py-4 shadow-[0_4px_18px_rgba(0,0,0,0.04)] transition-all hover:-translate-y-0.5 hover:shadow-[0_14px_30px_rgba(0,0,0,0.06)]"
+      onClick={() => onToggle(item)}
+    >
+      <CheckCircle2
+        size={18}
+        className={cn(
+          'shrink-0 transition-colors',
+          item.checked ? 'text-emerald-500' : 'text-gray-200 group-hover:text-indigo-400',
+        )}
+      />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <span className="text-lg">{category.icon}</span>
+          <p className="truncate text-sm font-black text-[#1d1d1f]">{item.name}</p>
+        </div>
+        <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-400">
+          <span>{category.label}</span>
+          <span>|</span>
+          <span>Ilosc: {item.quantity}</span>
+        </div>
+      </div>
+      <button
+        type="button"
+        aria-label={`Usun ${item.name}`}
+        onClick={(event) => {
+          event.stopPropagation();
+          onDelete(item.id);
+        }}
+        className="opacity-0 transition-all group-hover:opacity-100 rounded-xl bg-gray-50 p-2 text-gray-400 hover:bg-rose-50 hover:text-rose-500"
+      >
+        <X size={14} />
+      </button>
+    </motion.div>
   );
 }

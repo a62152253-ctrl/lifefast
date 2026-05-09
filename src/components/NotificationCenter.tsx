@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  Bell, CheckCheck, AlertTriangle, TrendingDown,
+  Bell, CheckCheck, TrendingDown,
   Zap, Flame, Target, ShoppingCart, Utensils, Heart, CalendarDays
 } from 'lucide-react';
 import { IconButton, Badge } from './CommonUI';
@@ -10,7 +10,7 @@ import { cn } from '../lib/utils';
 
 // ─── type config ─────────────────────────────────────────────────────────────
 
-const TYPE_CONFIG: Record<NotifType, { icon: React.ElementType; color: string; bg: string }> = {
+const TYPE_CONFIG: Record<NotifType, { icon: typeof Zap; color: string; bg: string }> = {
   task:     { icon: Zap,           color: 'text-amber-500',   bg: 'bg-amber-50'   },
   budget:   { icon: TrendingDown,  color: 'text-rose-500',    bg: 'bg-rose-50'    },
   habit:    { icon: Flame,         color: 'text-emerald-500', bg: 'bg-emerald-50' },
@@ -34,19 +34,19 @@ export default function NotificationCenter() {
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const { notifications } = useSmartNotifications();
 
-  const visible = notifications.filter(n => !dismissed.has(n.id));
-  const errorCount = visible.filter(n => n.severity === 'error').length;
+  const visible = notifications.filter((n: SmartNotification) => !dismissed.has(n.id));
+  const errorCount = visible.filter((n: SmartNotification) => n.severity === 'error').length;
 
   const dismiss = (id: string) =>
-    setDismissed(prev => new Set([...prev, id]));
+    setDismissed((prev: Set<string>) => new Set([...prev, id]));
 
   const dismissAll = () =>
-    setDismissed(new Set(notifications.map(n => n.id)));
+    setDismissed(new Set(notifications.map((n: SmartNotification) => n.id)));
 
   // dot colour: red if any errors, amber if warnings, indigo otherwise
   const dotColor = errorCount > 0
     ? 'bg-red-500'
-    : visible.some(n => n.severity === 'warning')
+    : visible.some((n: SmartNotification) => n.severity === 'warning')
       ? 'bg-amber-400'
       : 'bg-indigo-400';
 
@@ -56,7 +56,7 @@ export default function NotificationCenter() {
       <div className="relative">
         <IconButton
           icon={Bell}
-          onClick={() => setIsOpen(o => !o)}
+          onClick={() => setIsOpen((o: boolean) => !o)}
           className={cn('bg-gray-50', isOpen && 'bg-indigo-600 text-white')}
         />
         {visible.length > 0 && (
@@ -123,7 +123,7 @@ export default function NotificationCenter() {
                     <p className="text-xs mt-1 text-gray-400">Brak nowych powiadomień</p>
                   </div>
                 ) : (
-                  visible.map(item => {
+                  visible.map((item: SmartNotification) => {
                     const cfg = TYPE_CONFIG[item.type];
                     const Icon = cfg.icon;
                     return (
@@ -137,7 +137,7 @@ export default function NotificationCenter() {
                           'relative group p-4 rounded-2xl bg-gray-50/60 hover:bg-white',
                           'hover:shadow-lg hover:shadow-gray-100 transition-all',
                           'border border-transparent hover:border-gray-100',
-                          SEVERITY_STRIPE[item.severity]
+                          SEVERITY_STRIPE[item.severity as keyof typeof SEVERITY_STRIPE]
                         )}
                       >
                         <div className="flex gap-3">

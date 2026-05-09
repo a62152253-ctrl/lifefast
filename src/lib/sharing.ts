@@ -27,6 +27,10 @@ export interface Invite {
 export interface UserProfile {
   uid: string;
   email: string;
+  displayName?: string;
+  bio?: string;
+  avatarEmoji?: string;
+  avatarColor?: string;
   partnerUid?: string;
   partnerEmail?: string;
   settings?: {

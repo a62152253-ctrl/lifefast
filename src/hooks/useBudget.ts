@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { collection, query, where, onSnapshot, orderBy, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, Timestamp, limit } from 'firebase/firestore';
+import { format, startOfMonth, subMonths } from 'date-fns';
 import { db } from '../lib/firebase';
 import { useAuth } from './useAuth';
 import { useToast } from '../context/ToastContext';
@@ -42,6 +43,10 @@ export interface BudgetFilters {
   tags?: string[];
   minAmount?: number;
   maxAmount?: number;
+}
+
+function toBudgetDate(value: Timestamp | Date): Date {
+  return value instanceof Timestamp ? value.toDate() : new Date(value);
 }
 
 export function useBudget() {
@@ -292,6 +297,21 @@ export function useBudget() {
         }))
         .sort((a, b) => b.amount - a.amount)
         .slice(0, 5);
+
+      const monthlyTrend = Array.from({ length: 12 }, (_, index) => {
+        const monthDate = startOfMonth(subMonths(new Date(), 11 - index));
+        const monthKey = format(monthDate, 'yyyy-MM');
+
+        return transactions.reduce((sum, transaction) => {
+          const transactionDate = toBudgetDate(transaction.date);
+
+          if (Number.isNaN(transactionDate.getTime()) || format(transactionDate, 'yyyy-MM') !== monthKey) {
+            return sum;
+          }
+
+          return sum + (transaction.type === 'income' ? transaction.amount : -transaction.amount);
+        }, 0);
+      });
       
       return {
         totalIncome: income,
@@ -300,7 +320,7 @@ export function useBudget() {
         savingsRate: income > 0 ? Math.round(((income - expenses) / income) * 100) : 0,
         averageDailySpending: expenses / 30,
         topCategories,
-        monthlyTrend: [], // TODO: Calculate monthly trend
+        monthlyTrend,
       };
     } catch (error) {
       return {

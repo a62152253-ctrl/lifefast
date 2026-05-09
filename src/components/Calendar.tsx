@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '../lib/firebase';
 import {
@@ -253,17 +253,22 @@ export default function Calendar(): React.ReactElement {
     }
   }, [isOffline, showToast, handleError]);
 
-  const monthStart   = startOfMonth(currentDate);
-  const monthEnd     = endOfMonth(monthStart);
-  const startDate    = startOfWeek(monthStart, { locale: pl });
-  const endDate      = endOfWeek(monthEnd, { locale: pl });
-  const calendarDays = eachDayOfInterval({ start: startDate, end: endDate });
+  // Memoized calendar days
+  const calendarDays = useMemo(() => {
+    const monthStart = startOfMonth(currentDate);
+    const monthEnd = endOfMonth(currentDate);
+    const calendarStart = startOfWeek(monthStart, { weekStartsOn: 1 });
+    const calendarEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
+    
+    return eachDayOfInterval({ start: calendarStart, end: calendarEnd });
+  }, [currentDate]);
 
   const selectedDateEvents = events
     .filter(e => e.date === format(selectedDate, 'yyyy-MM-dd'))
     .sort((a, b) => (a.time ?? '').localeCompare(b.time ?? ''));
 
   const today = format(new Date(), 'yyyy-MM-dd');
+  const currentMonthStart = useMemo(() => startOfMonth(currentDate), [currentDate]);
 
   const upcomingEvents = events
     .filter(e => { try { return new Date(e.date) >= new Date(today); } catch { return false; } })
@@ -328,7 +333,7 @@ export default function Calendar(): React.ReactElement {
           <div className="grid grid-cols-7 gap-1">
             {calendarDays.map(day => {
               const isSelected   = isSameDay(day, selectedDate);
-              const inMonth      = isSameMonth(day, monthStart);
+              const inMonth      = isSameMonth(day, currentMonthStart);
               const dayEvents    = events.filter(e => e.date === format(day, 'yyyy-MM-dd'));
               const isCurrentDay = isToday(day);
 

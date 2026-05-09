@@ -1,90 +1,94 @@
-import React, { useState } from 'react';
-import { auth } from '../lib/firebase';
-import { Link } from 'react-router-dom';
-import { KeyRound, Mail, ArrowLeft, CheckCircle2 } from 'lucide-react';
-import { motion } from 'motion/react';
+import { useState } from 'react';
 import { sendPasswordResetEmail } from 'firebase/auth';
+import { ArrowLeft, CheckCircle2, KeyRound, Mail } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { auth } from '../lib/firebase';
+import AuthShell from './AuthShell';
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState('');
   const [error, setError] = useState('');
   const [sent, setSent] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleReset = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleReset = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
     setError('');
+    setSubmitting(true);
+
     try {
       await sendPasswordResetEmail(auth, email);
       setSent(true);
-    } catch (err: any) {
-      setError('Nie znaleźliśmy konta z tym e-mailem.');
+    } catch {
+      setError('Nie znaleźliśmy konta powiązanego z tym adresem e-mail.');
+    } finally {
+      setSubmitting(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-indigo-600 flex items-center justify-center p-6 bg-gradient-to-br from-indigo-600 to-violet-700">
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl text-center"
-      >
-        <div className="w-16 h-16 bg-indigo-100 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-sm">
-          {sent ? <CheckCircle2 size={32} className="text-emerald-500" /> : <KeyRound size={32} />}
+    <AuthShell
+      icon={sent ? CheckCircle2 : KeyRound}
+      eyebrow="Reset hasła"
+      title={sent ? 'Link został wysłany' : 'Odzyskaj dostęp'}
+      subtitle={
+        sent
+          ? 'Sprawdź skrzynkę odbiorczą i przejdź przez link resetujący hasło.'
+          : 'Podaj swój adres e-mail, a przygotujemy szybki link do ustawienia nowego hasła.'
+      }
+      showcaseTitle="Bez paniki. Powrót do aplikacji zajmuje chwilę."
+      showcaseCopy="Proces resetu został uproszczony, żebyś mógł wrócić do planów, zadań i notatek bez zbędnego błądzenia."
+      showcaseStats={[
+        { label: 'Reset', value: 'Fast' },
+        { label: 'Mail', value: 'Secure' },
+        { label: 'Back', value: 'Soon' },
+      ]}
+      footer={
+        <Link to="/login" className="inline-flex items-center gap-2 font-bold text-[var(--color-accent)] hover:underline">
+          <ArrowLeft size={16} />
+          Wróć do logowania
+        </Link>
+      }
+    >
+      {sent ? (
+        <div className="rounded-[1.45rem] border border-[rgba(47,158,103,0.16)] bg-[rgba(47,158,103,0.08)] px-5 py-5">
+          <p className="text-sm font-semibold leading-6 text-[var(--color-success)]">
+            Jeśli konto istnieje, wiadomość resetująca została wysłana na adres <strong>{email}</strong>.
+          </p>
         </div>
-        
-        {sent ? (
-          <>
-            <h1 className="text-2xl font-bold text-gray-900 mb-1 tracking-tight">Wysłano!</h1>
-            <p className="text-gray-500 mb-8 text-sm">Sprawdź swoją skrzynkę e-mail i postępuj zgodnie z instrukcją.</p>
-            <Link 
-              to="/login"
-              className="w-full flex items-center justify-center space-x-2 bg-indigo-600 text-white py-3 rounded-2xl font-bold hover:bg-indigo-700 transition-all active:scale-95"
-            >
-              <span>Wróć do logowania</span>
-            </Link>
-          </>
-        ) : (
-          <>
-            <h1 className="text-2xl font-bold text-gray-900 mb-1 tracking-tight">Odzyskaj hasło</h1>
-            <p className="text-gray-500 mb-8 text-sm">Masz problem z pamięcią? To nic, wyślemy Ci link do resetu.</p>
-            
-            <form onSubmit={handleReset} className="space-y-4 mb-6 text-left">
-              {error && (
-                <div className="bg-red-50 text-red-600 p-3 rounded-xl text-xs font-bold text-center">
-                  {error}
-                </div>
-              )}
-              
-              <div className="space-y-1">
-                <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">E-mail</label>
-                <div className="relative">
-                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                  <input 
-                    type="email" 
-                    required
-                    placeholder="twoj@email.com"
-                    className="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none transition-all text-sm"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                  />
-                </div>
-              </div>
+      ) : (
+        <form onSubmit={handleReset} className="space-y-4">
+          {error ? (
+            <div className="rounded-[1.35rem] border border-[rgba(211,91,87,0.18)] bg-[rgba(211,91,87,0.08)] px-4 py-3 text-sm font-semibold text-[var(--color-danger)]">
+              {error}
+            </div>
+          ) : null}
 
-              <button 
-                type="submit"
-                className="w-full bg-indigo-600 text-white py-3 rounded-2xl font-bold hover:bg-indigo-700 transition-all active:scale-95 shadow-md shadow-indigo-200"
-              >
-                Wyślij link
-              </button>
-            </form>
+          <label className="block space-y-2">
+            <span className="text-overline">Adres e-mail</span>
+            <div className="relative">
+              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--color-muted)]" size={18} />
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                placeholder="twoj@email.com"
+                className="input-base pl-12 pr-4"
+                disabled={submitting}
+              />
+            </div>
+          </label>
 
-            <Link to="/login" className="flex items-center justify-center space-x-2 text-sm text-gray-400 font-bold hover:text-indigo-600 transition-colors">
-              <ArrowLeft size={16} />
-              <span>Wróć do logowania</span>
-            </Link>
-          </>
-        )}
-      </motion.div>
-    </div>
+          <button
+            type="submit"
+            disabled={submitting}
+            className="w-full rounded-[1.35rem] bg-[linear-gradient(135deg,var(--color-accent),var(--color-accent-strong))] px-5 py-4 text-sm font-bold text-white shadow-[0_18px_36px_rgba(239,99,81,0.24)] transition-all hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {submitting ? 'Wysyłanie...' : 'Wyślij link resetujący'}
+          </button>
+        </form>
+      )}
+    </AuthShell>
   );
 }

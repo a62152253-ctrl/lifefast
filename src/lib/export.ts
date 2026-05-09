@@ -18,8 +18,8 @@ export function exportToJSON(data: any, fileName: string) {
 export function exportToCSV(data: any[], fileName: string) {
   if (!data || data.length === 0) return;
   
-  const headers = Object.keys(data[0]);
-  const csvRows = [];
+  const headers = Object.keys(data[0]) as string[];
+  const csvRows: string[] = [];
   
   // Header row
   csvRows.push(headers.join(','));

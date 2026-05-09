@@ -1,20 +1,40 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# LifeFast
 
-# Run and deploy your AI Studio app
+LifeFast is a personal productivity dashboard built with React, Vite, Firebase and Gemini. It combines tasks, budget, habits, calendar, notes and lightweight AI assistance into one fast web app.
 
-This contains everything you need to run your app locally.
+## Stack
 
-View your app in AI Studio: https://ai.studio/apps/706c02b6-48a9-412e-967a-5b843ea607fd
+- React 19 + Vite 6
+- TypeScript
+- Firebase Auth + Firestore
+- Tailwind CSS 4
+- Gemini via `@google/genai`
 
-## Run Locally
+## Local development
 
-**Prerequisites:**  Node.js
-
+Prerequisites: Node.js 20+ and npm.
 
 1. Install dependencies:
    `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
+2. Copy `.env.example` to `.env.local` or update `.env`
+3. Set at minimum:
+   `GEMINI_API_KEY`
+4. Optional but recommended for real deployments:
+   set all `VITE_FIREBASE_*` variables to your own Firebase project
+5. Start the dev server:
    `npm run dev`
+
+## Scripts
+
+- `npm run dev` - local development server
+- `npm run typecheck` - TypeScript validation
+- `npm run lint` - current static validation alias
+- `npm run build` - production build
+- `npm run preview` - preview built app
+- `npm run clean` - remove `dist`
+
+## Deployment notes
+
+- The app can run with the built-in fallback Firebase config, but production deployments should use your own `VITE_FIREBASE_*` values.
+- `VITE_DISABLE_AUTH=true` is meant only for local UI work and should stay off in production.
+- Build artifacts are generated into `dist/`.

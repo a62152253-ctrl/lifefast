@@ -37,6 +37,12 @@ service cloud.firestore {
       return isOwner(userId) || isPartnerOf(userId);
     }
 
+    function isAdmin() {
+      return isSignedIn()
+          && exists(/databases/$(database)/documents/userProfiles/$(request.auth.uid))
+          && get(/databases/$(database)/documents/userProfiles/$(request.auth.uid)).data.role == 'admin';
+    }
+
     // --- 1. Tasks ---
 
     function isValidTask(data) {
@@ -53,8 +59,8 @@ service cloud.firestore {
     match /tasks/{taskId} {
       allow get:    if canAccess(existing().userId);
       allow list:   if isSignedIn()
-                    && (resource.data.userId == request.auth.uid
-                        || isPartnerOf(resource.data.userId));
+                    && (existing().userId == request.auth.uid
+                        || isPartnerOf(existing().userId));
       allow create: if isSignedIn()
                     && isValidTask(incoming())
                     && incoming().userId == request.auth.uid
@@ -81,8 +87,8 @@ service cloud.firestore {
                     && (existing().addedBy == request.auth.uid
                         || isPartnerOf(existing().addedBy));
       allow list:   if isSignedIn()
-                    && (resource.data.addedBy == request.auth.uid
-                        || isPartnerOf(resource.data.addedBy));
+                    && (existing().addedBy == request.auth.uid
+                        || isPartnerOf(existing().addedBy));
       allow create: if isSignedIn()
                     && isValidShoppingItem(incoming())
                     && incoming().addedBy == request.auth.uid
@@ -111,8 +117,8 @@ service cloud.firestore {
     match /habits/{habitId} {
       allow get:    if canAccess(existing().userId);
       allow list:   if isSignedIn()
-                    && (resource.data.userId == request.auth.uid
-                        || isPartnerOf(resource.data.userId));
+                    && (existing().userId == request.auth.uid
+                        || isPartnerOf(existing().userId));
       allow create: if isSignedIn()
                     && isValidHabit(incoming())
                     && incoming().userId == request.auth.uid
@@ -137,8 +143,8 @@ service cloud.firestore {
     match /notes/{noteId} {
       allow get:    if canAccess(existing().userId);
       allow list:   if isSignedIn()
-                    && (resource.data.userId == request.auth.uid
-                        || isPartnerOf(resource.data.userId));
+                    && (existing().userId == request.auth.uid
+                        || isPartnerOf(existing().userId));
       allow create: if isSignedIn()
                     && isValidNote(incoming())
                     && incoming().userId == request.auth.uid
@@ -166,8 +172,8 @@ service cloud.firestore {
     match /budget/{transactionId} {
       allow get:    if canAccess(existing().userId);
       allow list:   if isSignedIn()
-                    && (resource.data.userId == request.auth.uid
-                        || isPartnerOf(resource.data.userId));
+                    && (existing().userId == request.auth.uid
+                        || isPartnerOf(existing().userId));
       allow create: if isSignedIn()
                     && isValidBudget(incoming())
                     && incoming().userId == request.auth.uid
@@ -195,8 +201,8 @@ service cloud.firestore {
     match /plans/{planId} {
       allow get:    if canAccess(existing().userId);
       allow list:   if isSignedIn()
-                    && (resource.data.userId == request.auth.uid
-                        || isPartnerOf(resource.data.userId));
+                    && (existing().userId == request.auth.uid
+                        || isPartnerOf(existing().userId));
       allow create: if isSignedIn()
                     && isValidPlan(incoming())
                     && incoming().userId == request.auth.uid
@@ -211,8 +217,10 @@ service cloud.firestore {
 
     match /userProfiles/{userId} {
       allow get:    if isSignedIn();
-      allow create,
-            update: if isOwner(userId);
+      allow list:   if isAdmin();
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId) || isAdmin();
+      allow delete: if isAdmin();
     }
 
     // --- 8. Invites ---
@@ -289,8 +297,8 @@ service cloud.firestore {
     match /calendarEvents/{eventId} {
       allow get:    if canAccess(existing().userId);
       allow list:   if isSignedIn()
-                    && (resource.data.userId == request.auth.uid
-                        || isPartnerOf(resource.data.userId));
+                    && (existing().userId == request.auth.uid
+                        || isPartnerOf(existing().userId));
       allow create: if isSignedIn()
                     && isValidCalendarEvent(incoming())
                     && incoming().userId == request.auth.uid
@@ -355,8 +363,8 @@ service cloud.firestore {
     match /goals/{goalId} {
       allow get:    if canAccess(existing().userId);
       allow list:   if isSignedIn()
-                    && (resource.data.userId == request.auth.uid
-                        || isPartnerOf(resource.data.userId));
+                    && (existing().userId == request.auth.uid
+                        || isPartnerOf(existing().userId));
       allow create: if isSignedIn()
                     && incoming().userId == request.auth.uid;
       allow update: if canAccess(existing().userId)

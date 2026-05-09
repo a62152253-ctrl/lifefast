@@ -1,15 +1,14 @@
 import { useAuthState } from 'react-firebase-hooks/auth';
-import { useMemo, useCallback, useState, useEffect } from 'react';
+import { useMemo, useCallback, useState, useEffect, memo } from 'react';
 import { auth, db } from '../lib/firebase';
 import { Button, Card, FloatingActionButton, IconButton, PageHeader, Badge, Modal } from './CommonUI';
 import {
   collection, addDoc, onSnapshot, query, where, deleteDoc,
   doc, updateDoc, serverTimestamp, orderBy, limit, Timestamp
 } from 'firebase/firestore';
-import React from 'react';
 import {
   Plus, Wallet, TrendingUp, TrendingDown, DollarSign, ReceiptText, PieChart,
-  ArrowUpRight, ArrowDownRight, Search, Filter, Target, PiggyBank
+  ArrowUpRight, ArrowDownRight, Search, Filter, Target, PiggyBank, Pencil, Trash2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { handleFirestoreError, OperationType } from '../lib/db';
@@ -276,25 +275,11 @@ export default function Budget() {
             <AnimatePresence mode="popLayout">
               {filtered.length > 0 ? filtered.map((t, idx) => (
                 <motion.div layout key={t.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ delay: idx * 0.05 }}>
-                  <Card className="flex items-center justify-between p-4 md:p-6 hover:bg-white transition-all group border-none cursor-pointer shadow-sm hover:shadow-xl" onClick={() => openEdit(t)}>
-                    <div className="flex items-center gap-4 overflow-hidden">
-                      <div className={cn('w-12 h-12 rounded-2xl flex items-center justify-center shrink-0', t.type === 'income' ? 'bg-emerald-50 text-emerald-600 group-hover:bg-emerald-500 group-hover:text-white' : 'bg-rose-50 text-rose-600 group-hover:bg-rose-500 group-hover:text-white')}>
-                        {t.type === 'income' ? <ArrowUpRight size={24} /> : <ArrowDownRight size={24} />}
-                      </div>
-                      <div className="min-w-0">
-                        <h5 className="text-lg font-black text-[#1d1d1f] truncate uppercase">{t.description}</h5>
-                        <div className="flex items-center gap-2 mt-1.5">
-                          <Badge variant="primary" className="bg-gray-50 text-gray-400 border-none px-2 py-0.5 text-[8px]">{t.category}</Badge>
-                          <span className="text-[9px] font-black text-gray-300 uppercase tracking-widest">
-                            {format(t.date instanceof Timestamp ? t.date.toDate() : new Date(t.date), 'd MMM', { locale: pl })}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                    <p className={cn('text-xl font-black tracking-tighter whitespace-nowrap pl-4', t.type === 'income' ? 'text-emerald-500' : 'text-[#1d1d1f]')}>
-                      {t.type === 'income' ? '+' : '-'}{t.amount.toLocaleString('pl-PL', { minimumFractionDigits: 2 })} <span className="text-[10px] opacity-40">PLN</span>
-                    </p>
-                  </Card>
+                      <TransactionItem
+                        transaction={t}
+                        onDelete={deleteTransaction}
+                        onEdit={openEdit}
+                      />
                 </motion.div>
               )) : (
                 <div className="bg-white rounded-[3rem] p-32 text-center border-2 border-dashed border-gray-100 flex flex-col items-center">
@@ -356,5 +341,83 @@ export default function Budget() {
         </form>
       </Modal>
     </div>
+  );
+}
+
+function resolveTransactionCategory(category: string) {
+  return (
+    CATEGORIES.find((item) => item.id === category || item.name === category) ??
+    CATEGORIES[CATEGORIES.length - 1]
+  );
+}
+
+function TransactionItem({
+  transaction,
+  onDelete,
+  onEdit,
+}: {
+  transaction: Transaction;
+  onDelete: (id: string) => void;
+  onEdit: (transaction: Transaction) => void;
+}) {
+  const category = resolveTransactionCategory(transaction.category);
+  const isIncome = transaction.type === 'income';
+  const transactionDate =
+    transaction.date instanceof Timestamp ? transaction.date.toDate() : new Date(transaction.date);
+
+  return (
+    <motion.div
+      layout
+      className="group flex items-center gap-4 rounded-[1.75rem] border border-gray-100 bg-white px-5 py-4 shadow-[0_4px_18px_rgba(0,0,0,0.04)] transition-all hover:-translate-y-0.5 hover:shadow-[0_14px_30px_rgba(0,0,0,0.06)]"
+    >
+      <div
+        className={cn(
+          'flex h-12 w-12 items-center justify-center rounded-[1.2rem] text-xl',
+          isIncome ? 'bg-emerald-50' : 'bg-rose-50',
+        )}
+      >
+        {category.icon}
+      </div>
+
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <p className="truncate text-sm font-black text-[#1d1d1f]">{transaction.description}</p>
+          <Badge
+            variant={isIncome ? 'success' : 'danger'}
+            className="border-none text-[9px] uppercase tracking-[0.16em]"
+          >
+            {isIncome ? 'Przychod' : 'Wydatek'}
+          </Badge>
+        </div>
+        <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-400">
+          <span>{category.name}</span>
+          <span>|</span>
+          <span>{format(transactionDate, 'd MMM yyyy', { locale: pl })}</span>
+        </div>
+      </div>
+
+      <div className="text-right">
+        <p className={cn('text-base font-black', isIncome ? 'text-emerald-600' : 'text-rose-600')}>
+          {isIncome ? '+' : '-'}
+          {transaction.amount.toFixed(2)} zl
+        </p>
+        <div className="mt-2 flex items-center justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+          <button
+            type="button"
+            onClick={() => onEdit(transaction)}
+            className="rounded-xl bg-gray-50 p-2 text-gray-500 transition-colors hover:bg-indigo-50 hover:text-indigo-600"
+          >
+            <Pencil size={14} />
+          </button>
+          <button
+            type="button"
+            onClick={() => onDelete(transaction.id)}
+            className="rounded-xl bg-gray-50 p-2 text-gray-500 transition-colors hover:bg-rose-50 hover:text-rose-600"
+          >
+            <Trash2 size={14} />
+          </button>
+        </div>
+      </div>
+    </motion.div>
   );
 }

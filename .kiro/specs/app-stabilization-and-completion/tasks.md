@@ -20,7 +20,7 @@ This implementation plan breaks down all 37 requirements into 10 major phases wi
   - **Property 1: Build Completeness**
   - **Validates: Requirements 1.1, 1.2**
 
-- [~] 1.3 Remove all console.log statements from production code
+- [ ] 1.3 Remove all console.log statements from production code
   - Search for all `console.log()` calls in src/ directory
   - Remove or replace with proper error handling
   - Keep console statements only in development-only files
@@ -28,7 +28,7 @@ This implementation plan breaks down all 37 requirements into 10 major phases wi
   - _Requirements: 1.3_
   - _Complexity: Medium_
 
-- [~] 1.4 Remove all console.error statements and replace with error handling
+- [ ] 1.4 Remove all console.error statements and replace with error handling
   - Search for all `console.error()` calls in src/ directory
   - Replace with centralized error logging service
   - Implement error boundaries for React errors
@@ -40,7 +40,7 @@ This implementation plan breaks down all 37 requirements into 10 major phases wi
   - **Property 2: Console Cleanup**
   - **Validates: Requirements 1.3, 1.4**
 
-- [~] 1.6 Checkpoint - Verify zero build errors
+- [ ] 1.6 Checkpoint - Verify zero build errors
   - Run `npm run build` and confirm zero errors and warnings
   - Run `tsc --noEmit` and confirm zero errors
   - Run `eslint src/**/*.{ts,tsx}` and confirm zero errors
@@ -50,13 +50,13 @@ This implementation plan breaks down all 37 requirements into 10 major phases wi
 
 ## Phase 2: Console Error Detection Across 12 Screens
 
-- [~] 2.1 Create console error tracking document
+- [ ] 2.1 Create console error tracking document
   - Create `CONSOLE_ERRORS.md` file in project root
   - Document structure: Screen name, Error type, Error message, Reproduction steps
   - _Requirements: 2.3_
   - _Complexity: Low_
 
-- [~] 2.2 Load and test Dashboard screen for console errors
+- [ ] 2.2 Load and test Dashboard screen for console errors
   - Load Dashboard in development mode
   - Open browser DevTools console
   - Document any errors or warnings
@@ -64,87 +64,87 @@ This implementation plan breaks down all 37 requirements into 10 major phases wi
   - _Requirements: 2.1, 2.2_
   - _Complexity: Medium_
 
-- [~] 2.3 Load and test Tasks screen for console errors
+- [ ] 2.3 Load and test Tasks screen for console errors
   - Load Tasks screen in development mode
   - Document any console errors or warnings
   - Categorize errors and add to tracking document
   - _Requirements: 2.1, 2.2_
   - _Complexity: Medium_
 
-- [~] 2.4 Load and test Habits screen for console errors
+- [ ] 2.4 Load and test Habits screen for console errors
   - Load Habits screen in development mode
   - Document any console errors or warnings
   - _Requirements: 2.1, 2.2_
   - _Complexity: Medium_
 
-- [~] 2.5 Load and test Budget screen for console errors
+- [ ] 2.5 Load and test Budget screen for console errors
   - Load Budget screen in development mode
   - Document any console errors or warnings
   - _Requirements: 2.1, 2.2_
   - _Complexity: Medium_
 
-- [~] 2.6 Load and test Notes screen for console errors
+- [ ] 2.6 Load and test Notes screen for console errors
   - Load Notes screen in development mode
   - Document any console errors or warnings
   - _Requirements: 2.1, 2.2_
   - _Complexity: Medium_
 
-- [~] 2.7 Load and test Calendar screen for console errors
+- [ ] 2.7 Load and test Calendar screen for console errors
   - Load Calendar screen in development mode
   - Document any console errors or warnings
   - _Requirements: 2.1, 2.2_
   - _Complexity: Medium_
 
-- [~] 2.8 Load and test Shopping screen for console errors
+- [ ] 2.8 Load and test Shopping screen for console errors
   - Load Shopping screen in development mode
   - Document any console errors or warnings
   - _Requirements: 2.1, 2.2_
   - _Complexity: Medium_
 
-- [~] 2.9 Load and test MealPlanner screen for console errors
+- [ ] 2.9 Load and test MealPlanner screen for console errors
   - Load MealPlanner screen in development mode
   - Document any console errors or warnings
   - _Requirements: 2.1, 2.2_
   - _Complexity: Medium_
 
-- [~] 2.10 Load and test MoodTracker screen for console errors
+- [ ] 2.10 Load and test MoodTracker screen for console errors
   - Load MoodTracker screen in development mode
   - Document any console errors or warnings
   - _Requirements: 2.1, 2.2_
   - _Complexity: Medium_
 
-- [~] 2.11 Load and test DailyPlan screen for console errors
+- [ ] 2.11 Load and test DailyPlan screen for console errors
   - Load DailyPlan screen in development mode
   - Document any console errors or warnings
   - _Requirements: 2.1, 2.2_
   - _Complexity: Medium_
 
-- [~] 2.12 Load and test Goals screen for console errors
+- [ ] 2.12 Load and test Goals screen for console errors
   - Load Goals screen in development mode
   - Document any console errors or warnings
   - _Requirements: 2.1, 2.2_
   - _Complexity: Medium_
 
-- [~] 2.13 Load and test FocusTimer screen for console errors
+- [ ] 2.13 Load and test FocusTimer screen for console errors
   - Load FocusTimer screen in development mode
   - Document any console errors or warnings
   - _Requirements: 2.1, 2.2_
   - _Complexity: Medium_
 
-- [~] 2.14 Load and test AIChat screen for console errors
+- [ ] 2.14 Load and test AIChat screen for console errors
   - Load AIChat screen in development mode
   - Document any console errors or warnings
   - _Requirements: 2.1, 2.2_
   - _Complexity: Medium_
 
-- [~] 2.15 Test navigation between all screens for errors
+- [ ] 2.15 Test navigation between all screens for errors
   - Navigate from each screen to every other screen
   - Document any navigation errors
   - Verify no console errors during transitions
   - _Requirements: 2.4_
   - _Complexity: Medium_
 
-- [~] 2.16 Fix all identified console errors
+- [ ] 2.16 Fix all identified console errors
   - Review CONSOLE_ERRORS.md document
   - Fix errors at source (component, service, config)
   - Add error boundaries for React errors
@@ -160,7 +160,7 @@ This implementation plan breaks down all 37 requirements into 10 major phases wi
   - **Property 4: Navigation Stability**
   - **Validates: Requirements 2.4**
 
-- [~] 2.19 Checkpoint - Verify all screens load without console errors
+- [ ] 2.19 Checkpoint - Verify all screens load without console errors
   - Load each of 12 screens and verify clean console
   - Test navigation between screens
   - Ask the user if questions arise.
@@ -170,7 +170,7 @@ This implementation plan breaks down all 37 requirements into 10 major phases wi
 
 ## Phase 3: Firebase Backend Stability (Rules, Indexes, CRUD)
 
-- [~] 3.1 Deploy Firestore security rules
+- [ ] 3.1 Deploy Firestore security rules
   - Review security rules in design document
   - Implement user isolation rules (users can only access own data)
   - Implement partner access rules (partners can access shared collections)
@@ -180,7 +180,7 @@ This implementation plan breaks down all 37 requirements into 10 major phases wi
   - _Requirements: 3.1_
   - _Complexity: High_
 
-- [~] 3.2 Deploy Firestore indexes for query optimization
+- [ ] 3.2 Deploy Firestore indexes for query optimization
   - Create indexes for: Tasks (userId + dueDate), Habits (userId + frequency)
   - Create indexes for: Budget (userId + date), Shopping (userId + completed)
   - Create indexes for: Meals (userId + date), Moods (userId + timestamp)
@@ -190,7 +190,7 @@ This implementation plan breaks down all 37 requirements into 10 major phases wi
   - _Requirements: 3.2_
   - _Complexity: Medium_
 
-- [~] 3.3 Implement Task CRUD operations with Firestore persistence
+- [ ] 3.3 Implement Task CRUD operations with Firestore persistence
   - Create createTask() function to save tasks to Firestore
   - Create readTask() function to fetch tasks from Firestore
   - Create updateTask() function to update tasks in Firestore
@@ -203,7 +203,7 @@ This implementation plan breaks down all 37 requirements into 10 major phases wi
   - **Property 5: CRUD Persistence Round Trip (Tasks)**
   - **Validates: Requirements 3.3**
 
-- [~] 3.5 Implement Habit CRUD operations with Firestore persistence
+- [ ] 3.5 Implement Habit CRUD operations with Firestore persistence
   - Create createHabit(), readHabit(), updateHabit(), deleteHabit() functions
   - Verify all operations persist correctly to Firestore
   - _Requirements: 3.4_
@@ -213,7 +213,7 @@ This implementation plan breaks down all 37 requirements into 10 major phases wi
   - **Property 5: CRUD Persistence Round Trip (Habits)**
   - **Validates: Requirements 3.4**
 
-- [~] 3.7 Implement Budget CRUD operations with Firestore persistence
+- [ ] 3.7 Implement Budget CRUD operations with Firestore persistence
   - Create createBudgetEntry(), readBudgetEntry(), updateBudgetEntry(), deleteBudgetEntry() functions
   - Verify all operations persist correctly to Firestore
   - _Requirements: 3.5_
@@ -223,7 +223,7 @@ This implementation plan breaks down all 37 requirements into 10 major phases wi
   - **Property 5: CRUD Persistence Round Trip (Budget)**
   - **Validates: Requirements 3.5**
 
-- [~] 3.9 Implement Note CRUD operations with Firestore persistence
+- [ ] 3.9 Implement Note CRUD operations with Firestore persistence
   - Create createNote(), readNote(), updateNote(), deleteNote() functions
   - Verify all operations persist correctly to Firestore
   - _Requirements: 3.6_
@@ -233,7 +233,7 @@ This implementation plan breaks down all 37 requirements into 10 major phases wi
   - **Property 5: CRUD Persistence Round Trip (Notes)**
   - **Validates: Requirements 3.6**
 
-- [~] 3.11 Implement Goal CRUD operations with Firestore persistence
+- [ ] 3.11 Implement Goal CRUD operations with Firestore persistence
   - Create createGoal(), readGoal(), updateGoal(), deleteGoal() functions
   - Verify all operations persist correctly to Firestore
   - _Requirements: 3.7_
@@ -243,7 +243,7 @@ This implementation plan breaks down all 37 requirements into 10 major phases wi
   - **Property 5: CRUD Persistence Round Trip (Goals)**
   - **Validates: Requirements 3.7**
 
-- [~] 3.13 Implement Shopping CRUD operations with Firestore persistence
+- [ ] 3.13 Implement Shopping CRUD operations with Firestore persistence
   - Create createShoppingItem(), readShoppingItem(), updateShoppingItem(), deleteShoppingItem() functions
   - Include addedBy field to track who added each item
   - Verify all operations persist correctly to Firestore
@@ -254,7 +254,7 @@ This implementation plan breaks down all 37 requirements into 10 major phases wi
   - **Property 5: CRUD Persistence Round Trip (Shopping)**
   - **Validates: Requirements 3.8**
 
-- [~] 3.15 Implement Calendar CRUD operations with Firestore persistence
+- [ ] 3.15 Implement Calendar CRUD operations with Firestore persistence
   - Create createEvent(), readEvent(), updateEvent(), deleteEvent() functions
   - Verify all operations persist correctly to Firestore
   - _Requirements: 3.9_
@@ -264,7 +264,7 @@ This implementation plan breaks down all 37 requirements into 10 major phases wi
   - **Property 5: CRUD Persistence Round Trip (Calendar)**
   - **Validates: Requirements 3.9**
 
-- [~] 3.17 Checkpoint - Verify all CRUD operations work correctly
+- [ ] 3.17 Checkpoint - Verify all CRUD operations work correctly
   - Test create, read, update, delete for each entity type
   - Verify data persists in Firestore
   - Ask the user if questions arise.
@@ -274,7 +274,7 @@ This implementation plan breaks down all 37 requirements into 10 major phases wi
 
 ## Phase 4: Dashboard Real Data Display
 
-- [~] 4.1 Implement Today widget to display tasks due today
+- [ ] 4.1 Implement Today widget to display tasks due today
   - Create useDashboardTasks() hook to fetch tasks due today from Firestore
   - Filter tasks where dueDate is between start of today and start of tomorrow
   - Display task count and list of tasks in widget
@@ -282,7 +282,7 @@ This implementation plan breaks down all 37 requirements into 10 major phases wi
   - _Requirements: 4.1_
   - _Complexity: Medium_
 
-- [~] 4.2 Implement Habit Streak widget
+- [ ] 4.2 Implement Habit Streak widget
   - Create useHabitStreak() hook to fetch habits from Firestore
   - Calculate habits completed today vs total habits
   - Display completion percentage and visual indicator
@@ -290,7 +290,7 @@ This implementation plan breaks down all 37 requirements into 10 major phases wi
   - _Requirements: 4.2_
   - _Complexity: Medium_
 
-- [~] 4.3 Implement Monthly Budget widget
+- [ ] 4.3 Implement Monthly Budget widget
   - Create useBudgetWidget() hook to fetch budget entries for current month
   - Calculate total spent and remaining budget
   - Display progress bar showing spending vs limit
@@ -298,7 +298,7 @@ This implementation plan breaks down all 37 requirements into 10 major phases wi
   - _Requirements: 4.3_
   - _Complexity: Medium_
 
-- [~] 4.4 Implement Next Event widget
+- [ ] 4.4 Implement Next Event widget
   - Create useNextEvent() hook to fetch upcoming calendar events
   - Sort by start time and get the next event
   - Display event title, time, and description
@@ -306,7 +306,7 @@ This implementation plan breaks down all 37 requirements into 10 major phases wi
   - _Requirements: 4.4_
   - _Complexity: Medium_
 
-- [~] 4.5 Remove all hardcoded placeholder data from Dashboard
+- [ ] 4.5 Remove all hardcoded placeholder data from Dashboard
   - Search Dashboard component for hardcoded data
   - Replace with real data from Firestore hooks
   - Verify no placeholder values remain
@@ -321,7 +321,7 @@ This implementation plan breaks down all 37 requirements into 10 major phases wi
   - **Property 7: Real-time Dashboard Updates**
   - **Validates: Requirements 4.6**
 
-- [~] 4.8 Checkpoint - Verify Dashboard displays real data
+- [ ] 4.8 Checkpoint - Verify Dashboard displays real data
   - Create test data in Firestore
   - Load Dashboard and verify widgets show real data
   - Modify data in Firestore and verify Dashboard updates within 2 seconds
@@ -332,7 +332,7 @@ This implementation plan breaks down all 37 requirements into 10 major phases wi
 
 ## Phase 5: Loading States and Empty States UX
 
-- [~] 5.1 Implement SkeletonUI loader for list components
+- [ ] 5.1 Implement SkeletonUI loader for list components
   - Use existing SkeletonUI.tsx component
   - Create useIsLoading() hook to track loading state
   - Display skeleton loader while data is fetching from Firestore
@@ -343,7 +343,7 @@ This implementation plan breaks down all 37 requirements into 10 major phases wi
   - **Property 8: Loading State Display**
   - **Validates: Requirements 5.1, 5.2**
 
-- [~] 5.3 Implement loading state replacement timing
+- [ ] 5.3 Implement loading state replacement timing
   - Ensure skeleton loader is replaced with content within 100ms of data arrival
   - Add transition animation for smooth replacement
   - Test timing with network throttling
@@ -354,84 +354,84 @@ This implementation plan breaks down all 37 requirements into 10 major phases wi
   - **Property 9: Loading State Replacement Timing**
   - **Validates: Requirements 5.3**
 
-- [~] 5.5 Implement EmptyState component
+- [ ] 5.5 Implement EmptyState component
   - Create EmptyState component with icon, title, description, and action button
   - Accept props: icon, title, description, actionLabel, onAction
   - Style consistently with app theme
   - _Requirements: 6.1, 6.2, 6.3_
   - _Complexity: Medium_
 
-- [~] 5.6 Implement empty state for Tasks list
+- [ ] 5.6 Implement empty state for Tasks list
   - Display EmptyState when tasks list is empty
   - Show "No tasks yet" with icon and "Add first task" button
   - Wire button to open task creation form
   - _Requirements: 6.1, 6.2, 6.3, 6.4_
   - _Complexity: Low_
 
-- [~] 5.7 Implement empty state for Habits list
+- [ ] 5.7 Implement empty state for Habits list
   - Display EmptyState when habits list is empty
   - Show "No habits yet" with icon and "Add first habit" button
   - Wire button to open habit creation form
   - _Requirements: 6.1, 6.2, 6.3, 6.4_
   - _Complexity: Low_
 
-- [~] 5.8 Implement empty state for Budget list
+- [ ] 5.8 Implement empty state for Budget list
   - Display EmptyState when budget entries list is empty
   - Show "No budget entries yet" with icon and "Add first entry" button
   - Wire button to open budget entry creation form
   - _Requirements: 6.1, 6.2, 6.3, 6.4_
   - _Complexity: Low_
 
-- [~] 5.9 Implement empty state for Notes list
+- [ ] 5.9 Implement empty state for Notes list
   - Display EmptyState when notes list is empty
   - Show "No notes yet" with icon and "Add first note" button
   - Wire button to open note creation form
   - _Requirements: 6.1, 6.2, 6.3, 6.4_
   - _Complexity: Low_
 
-- [~] 5.10 Implement empty state for Calendar events
+- [ ] 5.10 Implement empty state for Calendar events
   - Display EmptyState when calendar is empty
   - Show "No events yet" with icon and "Add first event" button
   - Wire button to open event creation form
   - _Requirements: 6.1, 6.2, 6.3, 6.4_
   - _Complexity: Low_
 
-- [~] 5.11 Implement empty state for Shopping list
+- [ ] 5.11 Implement empty state for Shopping list
   - Display EmptyState when shopping list is empty
   - Show "No items yet" with icon and "Add first item" button
   - Wire button to open shopping item creation form
   - _Requirements: 6.1, 6.2, 6.3, 6.4_
   - _Complexity: Low_
 
-- [~] 5.12 Implement empty state for Meals
+- [ ] 5.12 Implement empty state for Meals
   - Display EmptyState when meals list is empty
   - Show "No meals yet" with icon and "Add first meal" button
   - Wire button to open meal creation form
   - _Requirements: 6.1, 6.2, 6.3, 6.4_
   - _Complexity: Low_
 
-- [~] 5.13 Implement empty state for Moods
+- [ ] 5.13 Implement empty state for Moods
   - Display EmptyState when mood history is empty
   - Show "No mood entries yet" with icon and "Record first mood" button
   - Wire button to open mood recording form
   - _Requirements: 6.1, 6.2, 6.3, 6.4_
   - _Complexity: Low_
 
-- [~] 5.14 Implement empty state for DailyPlan
+- [ ] 5.14 Implement empty state for DailyPlan
   - Display EmptyState when daily plan is empty
   - Show "No plan entries yet" with icon and "Add first entry" button
   - Wire button to open plan entry creation form
   - _Requirements: 6.1, 6.2, 6.3, 6.4_
   - _Complexity: Low_
 
-- [~] 5.15 Implement empty state for Goals
+- [ ] 5.15 Implement empty state for Goals
   - Display EmptyState when goals list is empty
   - Show "No goals yet" with icon and "Add first goal" button
   - Wire button to open goal creation form
   - _Requirements: 6.1, 6.2, 6.3, 6.4_
   - _Complexity: Low_
 
-- [~] 5.16 Implement empty state for Chat history
+- [ ] 5.16 Implement empty state for Chat history
   - Display EmptyState when chat history is empty
   - Show "No messages yet" with icon and "Start a conversation" button
   - Wire button to focus message input
@@ -442,7 +442,7 @@ This implementation plan breaks down all 37 requirements into 10 major phases wi
   - **Property 10: Empty State Display**
   - **Validates: Requirements 6.1, 6.2, 6.3, 6.4**
 
-- [~] 5.18 Checkpoint - Verify loading and empty states work
+- [ ] 5.18 Checkpoint - Verify loading and empty states work
   - Test loading state on each list component
   - Test empty state on each list component
   - Verify transitions are smooth
@@ -453,7 +453,7 @@ This implementation plan breaks down all 37 requirements into 10 major phases wi
 
 ## Phase 6: Action Confirmation Feedback and Save Operation Feedback
 
-- [~] 6.1 Implement useSmartNotifications hook for toast notifications
+- [ ] 6.1 Implement useSmartNotifications hook for toast notifications
   - Create hook that manages toast notification state
   - Support notification types: success, error, warning, info
   - Auto-dismiss after 3 seconds
@@ -461,28 +461,28 @@ This implementation plan breaks down all 37 requirements into 10 major phases wi
   - _Requirements: 7.1, 7.2, 7.3, 7.4_
   - _Complexity: Medium_
 
-- [~] 6.2 Implement toast notification for task creation
+- [ ] 6.2 Implement toast notification for task creation
   - Show success toast when task is created
   - Display message: "Task created successfully"
   - Auto-dismiss after 3 seconds
   - _Requirements: 7.1_
   - _Complexity: Low_
 
-- [~] 6.3 Implement toast notification for task update
+- [ ] 6.3 Implement toast notification for task update
   - Show success toast when task is updated
   - Display message: "Task updated successfully"
   - Auto-dismiss after 3 seconds
   - _Requirements: 7.2_
   - _Complexity: Low_
 
-- [~] 6.4 Implement toast notification for task deletion
+- [ ] 6.4 Implement toast notification for task deletion
   - Show success toast when task is deleted
   - Display message: "Task deleted successfully"
   - Auto-dismiss after 3 seconds
   - _Requirements: 7.3_
   - _Complexity: Low_
 
-- [~] 6.5 Implement toast notifications for all other entity types
+- [ ] 6.5 Implement toast notifications for all other entity types
   - Add toast notifications for: Habits, Budget, Notes, Goals, Shopping, Calendar, Meals, Moods, DailyPlan
   - Each should show appropriate success message
   - Auto-dismiss after 3 seconds
@@ -493,7 +493,7 @@ This implementation plan breaks down all 37 requirements into 10 major phases wi
   - **Property 11: Action Confirmation Feedback**
   - **Validates: Requirements 7.1, 7.2, 7.3, 7.4**
 
-- [~] 6.7 Implement save operation feedback with button state
+- [ ] 6.7 Implement save operation feedback with button state
   - Create useSaveState() hook to track save operation state
   - Disable submit button while save is in progress
   - Display spinner on submit button during save
@@ -501,7 +501,7 @@ This implementation plan breaks down all 37 requirements into 10 major phases wi
   - _Requirements: 8.1, 8.2, 8.3_
   - _Complexity: Medium_
 
-- [~] 6.8 Apply save operation feedback to all CRUD forms
+- [ ] 6.8 Apply save operation feedback to all CRUD forms
   - Update Task creation/update form with save feedback
   - Update Habit creation/update form with save feedback
   - Update Budget creation/update form with save feedback
@@ -519,7 +519,7 @@ This implementation plan breaks down all 37 requirements into 10 major phases wi
   - **Property 12: Save Operation Feedback**
   - **Validates: Requirements 8.1, 8.2, 8.3**
 
-- [~] 6.10 Checkpoint - Verify action feedback works
+- [ ] 6.10 Checkpoint - Verify action feedback works
   - Create an item and verify success toast appears
   - Update an item and verify success toast appears
   - Delete an item and verify success toast appears
@@ -532,7 +532,7 @@ This implementation plan breaks down all 37 requirements into 10 major phases wi
 
 ## Phase 7: Partner Sync Functionality
 
-- [~] 7.1 Implement partner invitation flow
+- [ ] 7.1 Implement partner invitation flow
   - Create PartnerInvitation component with email input
   - Create sendPartnerInvitation() function to save invitation to Firestore
   - Store invitation with status: 'pending'
@@ -540,7 +540,7 @@ This implementation plan breaks down all 37 requirements into 10 major phases wi
   - _Requirements: 10.1, 10.2_
   - _Complexity: High_
 
-- [~] 7.2 Implement partner invitation acceptance
+- [ ] 7.2 Implement partner invitation acceptance
   - Create invitation acceptance UI
   - Create acceptPartnerInvitation() function to update invitation status to 'active'
   - Create connection record in partnerConnections collection
@@ -548,14 +548,14 @@ This implementation plan breaks down all 37 requirements into 10 major phases wi
   - _Requirements: 10.2_
   - _Complexity: High_
 
-- [~] 7.3 Implement partner invitation rejection
+- [ ] 7.3 Implement partner invitation rejection
   - Create invitation rejection UI
   - Create rejectPartnerInvitation() function to update invitation status to 'rejected'
   - Notify sender of rejection
   - _Requirements: 10.3_
   - _Complexity: Medium_
 
-- [~] 7.4 Implement partner disconnection
+- [ ] 7.4 Implement partner disconnection
   - Create disconnect button in Settings
   - Create disconnectPartner() function to remove connection from both accounts
   - Update connection status to 'disconnected'
@@ -567,7 +567,7 @@ This implementation plan breaks down all 37 requirements into 10 major phases wi
   - **Property 14: Partner Connection Establishment**
   - **Validates: Requirements 10.1, 10.2, 10.3, 10.4**
 
-- [~] 7.6 Implement real-time shopping list sync
+- [ ] 7.6 Implement real-time shopping list sync
   - Create useShoppingSync() hook to subscribe to partner's shopping items
   - Display partner's items in shopping list
   - Show "addedBy" field for each item
@@ -575,26 +575,26 @@ This implementation plan breaks down all 37 requirements into 10 major phases wi
   - _Requirements: 11.1, 11.2, 11.3, 11.4_
   - _Complexity: High_
 
-- [~] 7.7 Implement shopping item sync on create
+- [ ] 7.7 Implement shopping item sync on create
   - When user creates shopping item, save with addedBy field
   - Sync to partner's view within 2 seconds
   - Display who added the item
   - _Requirements: 11.1, 11.4_
   - _Complexity: Medium_
 
-- [~] 7.8 Implement shopping item sync on update
+- [ ] 7.8 Implement shopping item sync on update
   - When user updates shopping item, sync change to partner within 2 seconds
   - Update addedBy field if changed
   - _Requirements: 11.2, 11.4_
   - _Complexity: Medium_
 
-- [~] 7.9 Implement shopping item sync on delete
+- [ ] 7.9 Implement shopping item sync on delete
   - When user deletes shopping item, sync deletion to partner within 2 seconds
   - Remove item from partner's view
   - _Requirements: 11.3_
   - _Complexity: Medium_
 
-- [~] 7.10 Implement "Couple" badge in header
+- [ ] 7.10 Implement "Couple" badge in header
   - Display "Couple" badge when partner connection is active
   - Show partner's name or initials
   - Display in header next to user profile
@@ -605,7 +605,7 @@ This implementation plan breaks down all 37 requirements into 10 major phases wi
   - **Property 15: Shopping List Real-time Sync**
   - **Validates: Requirements 11.1, 11.2, 11.3, 11.4, 11.5**
 
-- [~] 7.12 Checkpoint - Verify partner sync works
+- [ ] 7.12 Checkpoint - Verify partner sync works
   - Send partner invitation and verify recipient receives it
   - Accept invitation and verify connection is active
   - Add shopping item and verify partner sees it within 2 seconds
@@ -619,7 +619,7 @@ This implementation plan breaks down all 37 requirements into 10 major phases wi
 
 ## Phase 8: PWA Capabilities (Manifest, Service Worker, Offline Queue, Install Prompt)
 
-- [~] 8.1 Create PWA manifest.json file
+- [ ] 8.1 Create PWA manifest.json file
   - Create public/manifest.json with app metadata
   - Include name: "LifeFast - Productivity App"
   - Include short_name: "LifeFast"
@@ -630,7 +630,7 @@ This implementation plan breaks down all 37 requirements into 10 major phases wi
   - _Requirements: 12.1, 12.2, 12.3, 12.4, 12.5_
   - _Complexity: Low_
 
-- [~] 8.2 Add PWA icons to manifest
+- [ ] 8.2 Add PWA icons to manifest
   - Create 192x192px icon and add to manifest
   - Create 512x512px icon and add to manifest
   - Create maskable 192x192px icon for adaptive icons
@@ -643,21 +643,21 @@ This implementation plan breaks down all 37 requirements into 10 major phases wi
   - **Property 16: PWA Manifest Configuration**
   - **Validates: Requirements 12.1, 12.2, 12.3, 12.4, 12.5**
 
-- [~] 8.4 Implement Service Worker with cache-first strategy
+- [ ] 8.4 Implement Service Worker with cache-first strategy
   - Create public/service-worker.js
   - Implement install event to cache critical assets
   - Cache: index.html, manifest.json, CSS, JS bundles
   - _Requirements: 13.1, 13.2, 13.3_
   - _Complexity: High_
 
-- [~] 8.5 Implement Service Worker fetch event handling
+- [ ] 8.5 Implement Service Worker fetch event handling
   - Implement cache-first strategy for static assets
   - Implement network-first strategy for API calls
   - Serve cached content when offline
   - _Requirements: 13.1, 13.2, 13.3, 13.4_
   - _Complexity: High_
 
-- [~] 8.6 Implement Service Worker activation and cleanup
+- [ ] 8.6 Implement Service Worker activation and cleanup
   - Implement activate event to clean up old caches
   - Remove outdated cache versions
   - Verify new cache is used on next load
@@ -668,7 +668,7 @@ This implementation plan breaks down all 37 requirements into 10 major phases wi
   - **Property 17: Service Worker Offline Caching**
   - **Validates: Requirements 13.1, 13.2, 13.3, 13.4**
 
-- [~] 8.8 Implement offline queue storage with IndexedDB
+- [ ] 8.8 Implement offline queue storage with IndexedDB
   - Create useOfflineQueue() hook
   - Store queued operations in IndexedDB
   - Support create, update, delete operations
@@ -676,7 +676,7 @@ This implementation plan breaks down all 37 requirements into 10 major phases wi
   - _Requirements: 14.1, 14.2, 14.3_
   - _Complexity: High_
 
-- [~] 8.9 Implement offline queue sync on reconnection
+- [ ] 8.9 Implement offline queue sync on reconnection
   - Create syncOfflineQueue() function
   - Execute queued operations when network is restored
   - Retry failed operations up to 3 times
@@ -684,7 +684,7 @@ This implementation plan breaks down all 37 requirements into 10 major phases wi
   - _Requirements: 14.4, 14.5_
   - _Complexity: High_
 
-- [~] 8.10 Implement offline banner display
+- [ ] 8.10 Implement offline banner display
   - Create OfflineBanner component
   - Display when isOffline state is true
   - Show "No connection" message
@@ -692,7 +692,7 @@ This implementation plan breaks down all 37 requirements into 10 major phases wi
   - _Requirements: 9.1, 9.2, 9.3, 9.4_
   - _Complexity: Low_
 
-- [~] 8.11 Implement offline banner hide on reconnection
+- [ ] 8.11 Implement offline banner hide on reconnection
   - Hide banner within 2 seconds of reconnection
   - Add smooth fade-out animation
   - Verify banner is hidden when online
@@ -703,14 +703,14 @@ This implementation plan breaks down all 37 requirements into 10 major phases wi
   - **Property 18: Offline Queue Operation Storage**
   - **Validates: Requirements 14.1, 14.2, 14.3, 14.4, 14.5**
 
-- [~] 8.13 Implement PWA install prompt
+- [ ] 8.13 Implement PWA install prompt
   - Listen for beforeinstallprompt event
   - Store deferred prompt for later use
   - Display custom install prompt after 30 seconds
   - _Requirements: 15.1, 15.2_
   - _Complexity: Medium_
 
-- [~] 8.14 Implement install prompt dismissal logic
+- [ ] 8.14 Implement install prompt dismissal logic
   - Store dismissal timestamp in localStorage
   - Don't show prompt again for 7 days if dismissed
   - Allow user to manually trigger install from Settings

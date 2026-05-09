@@ -1,27 +1,19 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { lazy, Suspense, useState, useEffect, useCallback } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
+import { BrowserRouter as Router, Navigate, Route, Routes } from 'react-router-dom';
 import { useAuthState } from 'react-firebase-hooks/auth';
-import { auth, isFirebaseInitialized, firebaseInitError } from './lib/firebase';
-
+import { auth, isFirebaseInitialized } from './lib/firebase';
 import Layout from './components/Layout';
 import Login from './components/Login';
 import Register from './components/Register';
 import Chat from './components/Chat';
 import ForgotPassword from './components/ForgotPassword';
-
 import { DeviceProvider } from './context/DeviceContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { LanguageProvider } from './context/LanguageContext';
 import { ToastProvider } from './context/ToastContext';
 import { OfflineProvider } from './context/OfflineContext';
+import { useAdmin } from './hooks/useAdmin';
 
-// 🔥 Lazy loaded pages (lepsza wydajność)
 const Dashboard = lazy(() => import('./components/Dashboard'));
 const Tasks = lazy(() => import('./components/Tasks'));
 const Shopping = lazy(() => import('./components/Shopping'));
@@ -33,145 +25,147 @@ const Calendar = lazy(() => import('./components/Calendar'));
 const MealPlanner = lazy(() => import('./components/MealPlanner'));
 const MoodTracker = lazy(() => import('./components/MoodTracker'));
 const Settings = lazy(() => import('./components/Settings'));
-const Goals    = lazy(() => import('./components/Goals'));
+const Goals = lazy(() => import('./components/Goals'));
+const AdminDashboard = lazy(() => import('./components/AdminDashboard'));
+const AdminSetup = lazy(() => import('./components/AdminSetup'));
 
-// 🔁 Toggle auth (DEV vs PROD)
-const DISABLE_AUTH = process.env.REACT_APP_DISABLE_AUTH === 'true' || false;
+const DISABLE_AUTH = import.meta.env.VITE_DISABLE_AUTH === 'true';
 
-// Enhanced loading component with better UX
-const LoadingSpinner = ({ message = 'Ładowanie...' }) => (
-  <div className="min-h-screen flex items-center justify-center bg-gray-50">
-    <div className="text-center">
-      <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-      <p className="text-gray-600 font-medium">{message}</p>
-    </div>
-  </div>
-);
+type ScreenStateProps = {
+  title: string;
+  message: string;
+  actionLabel?: string;
+  onAction?: () => void;
+  secondaryLabel?: string;
+  onSecondaryAction?: () => void;
+};
 
-// Firebase initialization error component
-const FirebaseError = ({ error, onRetry }) => (
-  <div className="min-h-screen flex items-center justify-center bg-gray-50">
-    <div className="text-center p-8 max-w-md">
-      <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-        <span className="text-2xl">⚠️</span>
+function ScreenState({
+  title,
+  message,
+  actionLabel,
+  onAction,
+  secondaryLabel,
+  onSecondaryAction,
+}: ScreenStateProps) {
+  return (
+    <div className="bg-gradient-page flex min-h-screen items-center justify-center p-6">
+      <div className="glass-card noise relative max-w-md overflow-hidden rounded-[2rem] p-8 text-center">
+        <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-[1.4rem] bg-gradient-brand text-2xl font-display font-bold text-white shadow-[0_18px_34px_rgba(239,99,81,0.24)]">
+          LF
+        </div>
+        <h2 className="font-display text-3xl font-bold tracking-[-0.06em] text-[var(--color-ink)]">
+          {title}
+        </h2>
+        <p className="mt-3 text-sm leading-6 text-[var(--color-ink-soft)]">
+          {message}
+        </p>
+        <div className="mt-6 flex flex-wrap justify-center gap-3">
+          {actionLabel && onAction ? (
+            <button
+              type="button"
+              onClick={onAction}
+              className="rounded-full bg-[var(--color-accent)] px-5 py-3 text-sm font-bold text-white shadow-[0_16px_34px_rgba(239,99,81,0.22)] transition-transform hover:-translate-y-0.5"
+            >
+              {actionLabel}
+            </button>
+          ) : null}
+          {secondaryLabel && onSecondaryAction ? (
+            <button
+              type="button"
+              onClick={onSecondaryAction}
+              className="rounded-full border border-[var(--color-line-strong)] bg-white/75 px-5 py-3 text-sm font-bold text-[var(--color-ink)] transition-colors hover:bg-white"
+            >
+              {secondaryLabel}
+            </button>
+          ) : null}
+        </div>
       </div>
-      <h2 className="text-xl font-bold text-gray-900 mb-2">Błąd inicjalizacji Firebase</h2>
-      <p className="text-gray-600 mb-4 text-sm">{error?.message || 'Nie udało się połączyć z Firebase'}</p>
-      <button 
-        onClick={onRetry} 
-        className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors mr-2"
-      >
-        Ponów
-      </button>
-      <button 
-        onClick={() => window.location.reload()} 
-        className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
-      >
-        Odśwież stronę
-      </button>
     </div>
-  </div>
-);
-// 🔐 Enhanced route guard with better error handling
+  );
+}
+
+function LoadingSpinner({ message = 'Ładowanie...' }: { message?: string }) {
+  return (
+    <div className="bg-gradient-page flex min-h-screen items-center justify-center p-6">
+      <div className="glass-card flex min-w-[19rem] flex-col items-center rounded-[2rem] px-8 py-9 text-center">
+        <div className="mb-4 h-12 w-12 animate-spin rounded-full border-[3px] border-[rgba(239,99,81,0.18)] border-t-[var(--color-accent)]" />
+        <p className="font-display text-2xl font-bold tracking-[-0.05em] text-[var(--color-ink)]">
+          LifeFlow
+        </p>
+        <p className="mt-2 text-sm text-[var(--color-ink-soft)]">{message}</p>
+      </div>
+    </div>
+  );
+}
+
 function ProtectedRoutes() {
   const [user, loading, error] = useAuthState(auth);
   const [timeoutReached, setTimeoutReached] = useState(false);
-  const [retryCount, setRetryCount] = useState(0);
-  const [retrying, setRetrying] = useState(false);
 
-  // Check Firebase initialization
-  if (!isFirebaseInitialized && !DISABLE_AUTH) {
-    return <FirebaseError error={firebaseInitError} onRetry={() => window.location.reload()} />;
-  }
-
-  // Timeout for auth loading (prevents infinite loading)
   useEffect(() => {
-    if (!loading) return;
-    
+    if (!loading) {
+      setTimeoutReached(false);
+      return undefined;
+    }
+
     const timer = setTimeout(() => {
       setTimeoutReached(true);
-    }, 5000);
+    }, 7000);
 
     return () => clearTimeout(timer);
   }, [loading]);
 
-  // Retry function
-  const handleRetry = useCallback(async () => {
-    setRetrying(true);
-    setRetryCount(prev => prev + 1);
+  const handleRetry = useCallback(() => {
     setTimeoutReached(false);
-    
-    // Wait a moment before retry
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    setRetrying(false);
+    window.location.reload();
   }, []);
 
-  // Dev mode bypass
+  if (!isFirebaseInitialized && !DISABLE_AUTH) {
+    return (
+      <ScreenState
+        title="Błąd połączenia"
+        message="Nie udało się połączyć z usługą Firebase."
+        actionLabel="Odśwież"
+        onAction={() => window.location.reload()}
+      />
+    );
+  }
+
   if (DISABLE_AUTH) {
     return <Layout />;
   }
 
-  // Handle auth errors
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center p-8 max-w-md">
-          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <span className="text-2xl">⚠️</span>
-          </div>
-          <h2 className="text-xl font-bold text-gray-900 mb-2">Błąd autentykacji</h2>
-          <p className="text-gray-600 mb-4 text-sm">{error.message || 'Wystąpił problem z logowaniem. Spróbuj odświeżyć stronę.'}</p>
-          <div className="space-x-2">
-            <button 
-              onClick={handleRetry} 
-              disabled={retrying}
-              className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50"
-            >
-              {retrying ? 'Ponawianie...' : 'Ponów'}
-            </button>
-            <button 
-              onClick={() => window.location.reload()} 
-              className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
-            >
-              Odśwież
-            </button>
-          </div>
-        </div>
-      </div>
+      <ScreenState
+        title="Nie udało się zalogować"
+        message={error.message || 'Wystąpił problem z autentykacją. Spróbuj ponownie za chwilę.'}
+        actionLabel="Spróbuj ponownie"
+        onAction={handleRetry}
+        secondaryLabel="Odśwież stronę"
+        onSecondaryAction={() => window.location.reload()}
+      />
     );
   }
 
-  // Loading state with timeout
   if (loading && !timeoutReached) {
-    return <LoadingSpinner message="Sprawdzanie autentykacji..." />;
+    return <LoadingSpinner message="Sprawdzanie sesji i przygotowanie aplikacji..." />;
   }
 
-  // Timeout fallback
   if (loading && timeoutReached) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center p-8">
-          <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <span className="text-2xl">⏰</span>
-          </div>
-          <h2 className="text-xl font-bold text-gray-900 mb-2">Przekroczono czas oczekiwania</h2>
-          <p className="text-gray-600 mb-4">Logowanie trwa zbyt długo. Spróbuj ponownie.</p>
-          <div className="space-x-2">
-            <button 
-              onClick={handleRetry} 
-              disabled={retrying}
-              className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50"
-            >
-              {retrying ? 'Ponawianie...' : 'Ponów'}
-            </button>
-            <Navigate to="/login" replace />
-          </div>
-        </div>
-      </div>
+      <ScreenState
+        title="To trwa trochę za długo"
+        message="Sesja nie zdążyła się przywrócić. Najczęściej pomaga odświeżenie strony albo ponowna próba logowania."
+        actionLabel="Odśwież"
+        onAction={() => window.location.reload()}
+        secondaryLabel="Spróbuj ponownie"
+        onSecondaryAction={handleRetry}
+      />
     );
   }
 
-  // Not authenticated
   if (!user) {
     return <Navigate to="/login" replace />;
   }
@@ -179,27 +173,38 @@ function ProtectedRoutes() {
   return <Layout />;
 }
 
-// 📦 Wspólna konfiguracja tras
+// Guard: tylko zalogowany admin może wejść na /admin
+function AdminRoute() {
+  const { isAdmin, loading } = useAdmin();
+  const [user, authLoading] = useAuthState(auth);
+
+  if (authLoading || loading) {
+    return <LoadingSpinner message="Sprawdzanie uprawnień..." />;
+  }
+  if (!user) return <Navigate to="/login" replace />;
+  if (!isAdmin) return <Navigate to="/" replace />;
+  return <AdminDashboard />;
+}
+
 const appRoutes = [
-  { path: "/", element: <Dashboard /> },
-  { path: "/tasks", element: <Tasks /> },
-  { path: "/shopping", element: <Shopping /> },
-  { path: "/habits", element: <Habits /> },
-  { path: "/notes", element: <Notes /> },
-  { path: "/budget", element: <Budget /> },
-  { path: "/plan", element: <DailyPlan /> },
-  { path: "/calendar", element: <Calendar /> },
-  { path: "/meals", element: <MealPlanner /> },
-  { path: "/mood", element: <MoodTracker /> },
-  { path: "/chat", element: <Chat /> },
-  { path: "/goals", element: <Goals /> },
-  { path: "/settings", element: <Settings /> },
+  { path: '/', element: <Dashboard /> },
+  { path: '/tasks', element: <Tasks /> },
+  { path: '/shopping', element: <Shopping /> },
+  { path: '/habits', element: <Habits /> },
+  { path: '/notes', element: <Notes /> },
+  { path: '/budget', element: <Budget /> },
+  { path: '/plan', element: <DailyPlan /> },
+  { path: '/calendar', element: <Calendar /> },
+  { path: '/meals', element: <MealPlanner /> },
+  { path: '/mood', element: <MoodTracker /> },
+  { path: '/chat', element: <Chat /> },
+  { path: '/goals', element: <Goals /> },
+  { path: '/settings', element: <Settings /> },
 ];
 
 export default function App() {
-  // Check Firebase initialization on app start
   useEffect(() => {
-    // Firebase initialization check is handled by ProtectedRoutes
+    document.documentElement.lang = 'pl';
   }, []);
 
   return (
@@ -208,29 +213,25 @@ export default function App() {
         <LanguageProvider>
           <ToastProvider>
             <OfflineProvider>
-                <Router>
-                  <Suspense fallback={<LoadingSpinner message="Ładowanie aplikacji..." />}>
-                    <Routes>
+              <Router>
+                <Suspense fallback={<LoadingSpinner message="Ładowanie modułów aplikacji..." />}>
+                  <Routes>
+                    <Route path="/login" element={<Login />} />
+                    <Route path="/register" element={<Register />} />
+                    <Route path="/forgot-password" element={<ForgotPassword />} />
+                    <Route path="/admin-setup" element={<AdminSetup />} />
+                    <Route path="/admin" element={<AdminRoute />} />
 
-                      {/* Public routes */}
-                      <Route path="/login" element={<Login />} />
-                      <Route path="/register" element={<Register />} />
-                      <Route path="/forgot-password" element={<ForgotPassword />} />
+                    <Route path="/" element={<ProtectedRoutes />}>
+                      {appRoutes.map((route) => (
+                        <Route key={route.path} path={route.path} element={route.element} />
+                      ))}
+                    </Route>
 
-                      {/* App routes */}
-                      <Route path="/" element={<ProtectedRoutes />}>
-                        {appRoutes.map((route) => {
-                          const RouteComp = Route as any;
-                          return <RouteComp key={route.path} path={route.path} element={route.element} />;
-                        })}
-                      </Route>
-
-                      {/* Fallback */}
-                      <Route path="*" element={<Navigate to="/" replace />} />
-
-                    </Routes>
-                  </Suspense>
-                </Router>
+                    <Route path="*" element={<Navigate to="/" replace />} />
+                  </Routes>
+                </Suspense>
+              </Router>
             </OfflineProvider>
           </ToastProvider>
         </LanguageProvider>

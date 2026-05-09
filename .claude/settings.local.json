@@ -13,7 +13,12 @@
       "Bash(Select-Object -ExpandProperty Lines)",
       "Bash(Get-Content \"c:\\\\XAMPP2\\\\htdocs\\\\lifefast\\\\src\\\\context\\\\LanguageContext.tsx\")",
       "PowerShell(\\(Get-Content \"c:\\\\XAMPP2\\\\htdocs\\\\lifefast\\\\src\\\\components\\\\Settings.tsx\"\\).Count; \\(Get-Content \"c:\\\\XAMPP2\\\\htdocs\\\\lifefast\\\\src\\\\context\\\\LanguageContext.tsx\"\\).Count)",
-      "PowerShell(\\(Get-Content \"c:\\\\XAMPP2\\\\htdocs\\\\lifefast\\\\src\\\\components\\\\Dashboard.tsx\"\\).Count; \\(Get-Content \"c:\\\\XAMPP2\\\\htdocs\\\\lifefast\\\\src\\\\components\\\\Tasks.tsx\"\\).Count; \\(Get-Content \"c:\\\\XAMPP2\\\\htdocs\\\\lifefast\\\\src\\\\components\\\\Calendar.tsx\"\\).Count; \\(Get-Content \"c:\\\\XAMPP2\\\\htdocs\\\\lifefast\\\\src\\\\components\\\\Notes.tsx\"\\).Count; \\(Get-Content \"c:\\\\XAMPP2\\\\htdocs\\\\lifefast\\\\src\\\\components\\\\Shopping.tsx\"\\).Count; \\(Get-Content \"c:\\\\XAMPP2\\\\htdocs\\\\lifefast\\\\src\\\\components\\\\Goals.tsx\"\\).Count; \\(Get-Content \"c:\\\\XAMPP2\\\\htdocs\\\\lifefast\\\\src\\\\components\\\\Habits.tsx\"\\).Count; \\(Get-Content \"c:\\\\XAMPP2\\\\htdocs\\\\lifefast\\\\src\\\\components\\\\Budget.tsx\"\\).Count)"
+      "PowerShell(\\(Get-Content \"c:\\\\XAMPP2\\\\htdocs\\\\lifefast\\\\src\\\\components\\\\Dashboard.tsx\"\\).Count; \\(Get-Content \"c:\\\\XAMPP2\\\\htdocs\\\\lifefast\\\\src\\\\components\\\\Tasks.tsx\"\\).Count; \\(Get-Content \"c:\\\\XAMPP2\\\\htdocs\\\\lifefast\\\\src\\\\components\\\\Calendar.tsx\"\\).Count; \\(Get-Content \"c:\\\\XAMPP2\\\\htdocs\\\\lifefast\\\\src\\\\components\\\\Notes.tsx\"\\).Count; \\(Get-Content \"c:\\\\XAMPP2\\\\htdocs\\\\lifefast\\\\src\\\\components\\\\Shopping.tsx\"\\).Count; \\(Get-Content \"c:\\\\XAMPP2\\\\htdocs\\\\lifefast\\\\src\\\\components\\\\Goals.tsx\"\\).Count; \\(Get-Content \"c:\\\\XAMPP2\\\\htdocs\\\\lifefast\\\\src\\\\components\\\\Habits.tsx\"\\).Count; \\(Get-Content \"c:\\\\XAMPP2\\\\htdocs\\\\lifefast\\\\src\\\\components\\\\Budget.tsx\"\\).Count)",
+      "Bash(node create-admin.mjs)",
+      "Bash(Get-Content \"C:\\\\XAMPP2\\\\htdocs\\\\lifefast\\\\src\\\\ai\\\\language\\\\polishVocabulary.ts\")",
+      "Bash(Select-String \"^export const|^// ─── \")",
+      "Bash(Select-Object -First 50)",
+      "Bash(node -e \"const l = require\\('c:/XAMPP2/htdocs/lifefast/node_modules/lucide-react'\\); console.log\\(Object.keys\\(l\\).filter\\(k => /^\\(Shield|Crown|Arrow|Chevron|User|Check\\)/i.test\\(k\\)\\).sort\\(\\).join\\('\\\\n'\\)\\)\")"
     ]
   }
 }

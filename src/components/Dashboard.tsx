@@ -1,14 +1,26 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { motion } from 'framer-motion';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { format, startOfWeek } from 'date-fns';
+import { addDays, format, startOfWeek } from 'date-fns';
 import { pl } from 'date-fns/locale';
-
+import { motion } from 'motion/react';
+import type { LucideIcon } from 'lucide-react';
+import {
+  ArrowRight,
+  CalendarClock,
+  CheckCheck,
+  Clock3,
+  Flame,
+  MessageSquareText,
+  NotebookPen,
+  PiggyBank,
+  Plus,
+  Send,
+  Sparkles,
+  Target,
+  TrendingUp,
+  Wallet,
+  WifiOff,
+} from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useAuth } from '../hooks/useAuth';
 import { useTasks } from '../hooks/useTasks';
@@ -23,41 +35,132 @@ import { useWeekStats } from '../hooks/useWeekStats';
 import { useToast } from '../context/ToastContext';
 import { useOffline } from '../context/OfflineContext';
 
-import {
-  CheckCircle2,
-  Circle,
-  Plus,
-  Clock,
-  Flame,
-  Wallet,
-  NotebookPen,
-  Heart,
-  Send,
-  MessageCircle,
-  AlertTriangle,
-  TrendingUp,
-  Activity,
-} from 'lucide-react';
-
-import { ProgressCircle } from './ProgressCircle';
-
-const categoryColors: Record<string, string> = {
-  praca: 'bg-blue-100 text-blue-700 border-blue-200',
-  osobiste: 'bg-green-100 text-green-700 border-green-200',
-  zakupy: 'bg-purple-100 text-purple-700 border-purple-200',
-  zdrowie: 'bg-red-100 text-red-700 border-red-200',
-  nauka: 'bg-yellow-100 text-yellow-700 border-yellow-200',
-  dom: 'bg-orange-100 text-orange-700 border-orange-200',
-  finanse: 'bg-emerald-100 text-emerald-700 border-emerald-200',
-  rozrywka: 'bg-pink-100 text-pink-700 border-pink-200',
-  sport: 'bg-indigo-100 text-indigo-700 border-indigo-200',
-  podróże: 'bg-teal-100 text-teal-700 border-teal-200',
-  technologia: 'bg-cyan-100 text-cyan-700 border-cyan-200',
-  kreatywność: 'bg-rose-100 text-rose-700 border-rose-200',
-  społeczność: 'bg-violet-100 text-violet-700 border-violet-200',
-  rozwój: 'bg-amber-100 text-amber-700 border-amber-200',
-  inne: 'bg-gray-100 text-gray-700 border-gray-200',
+type PanelProps = {
+  title: string;
+  description?: string;
+  action?: React.ReactNode;
+  className?: string;
+  children: React.ReactNode;
 };
+
+type MetricCardProps = {
+  title: string;
+  value: string;
+  detail: string;
+  icon: LucideIcon;
+  to: string;
+  accent: string;
+  accentSoft: string;
+  progress?: number;
+};
+
+function toDateValue(value: unknown) {
+  if (!value) {
+    return null;
+  }
+
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+
+  if (typeof value === 'string') {
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  if (
+    typeof value === 'object' &&
+    value !== null &&
+    'toDate' in value &&
+    typeof (value as { toDate: () => Date }).toDate === 'function'
+  ) {
+    const parsed = (value as { toDate: () => Date }).toDate();
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  return null;
+}
+
+function formatDueDateLabel(value?: string) {
+  if (!value) {
+    return 'Bez terminu';
+  }
+
+  const parsed = toDateValue(value);
+
+  if (!parsed) {
+    return value;
+  }
+
+  const sameDay = format(parsed, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
+  return sameDay
+    ? `Dziś, ${format(parsed, 'HH:mm', { locale: pl })}`
+    : format(parsed, 'd MMMM', { locale: pl });
+}
+
+function Panel({ title, description, action, className, children }: PanelProps) {
+  return (
+    <section className={cn('surface-panel noise relative overflow-hidden p-5 sm:p-6', className)}>
+      <div className="mb-5 flex items-start justify-between gap-4">
+        <div>
+          <p className="font-display text-2xl font-bold tracking-[-0.06em] text-[var(--color-ink)]">
+            {title}
+          </p>
+          {description ? (
+            <p className="mt-1 text-sm leading-6 text-[var(--color-ink-soft)]">{description}</p>
+          ) : null}
+        </div>
+        {action ? <div className="shrink-0">{action}</div> : null}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function MetricCard({
+  title,
+  value,
+  detail,
+  icon: Icon,
+  to,
+  accent,
+  accentSoft,
+  progress,
+}: MetricCardProps) {
+  return (
+    <Link to={to}>
+      <motion.article
+        whileHover={{ y: -3, scale: 1.01 }}
+        whileTap={{ scale: 0.985 }}
+        transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+        className="surface-panel h-full overflow-hidden p-5"
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div
+            className="flex h-12 w-12 items-center justify-center rounded-[1.2rem]"
+            style={{ backgroundColor: accentSoft }}
+          >
+            <Icon size={20} style={{ color: accent }} />
+          </div>
+          <ArrowRight size={16} className="text-[var(--color-muted)]" />
+        </div>
+        <p className="mt-5 text-overline">{title}</p>
+        <p className="mt-2 font-display text-3xl font-bold tracking-[-0.06em] text-[var(--color-ink)]">
+          {value}
+        </p>
+        <p className="mt-2 text-sm text-[var(--color-ink-soft)]">{detail}</p>
+        {typeof progress === 'number' ? (
+          <div className="mt-4 h-2 overflow-hidden rounded-full bg-[rgba(32,26,23,0.06)]">
+            <div
+              className="h-full rounded-full transition-all duration-500"
+              style={{ width: `${Math.max(0, Math.min(100, progress))}%`, backgroundColor: accent }}
+            />
+          </div>
+        ) : null}
+      </motion.article>
+    </Link>
+  );
+}
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -74,655 +177,555 @@ export default function Dashboard() {
   const { isOffline } = useOffline();
 
   const [newMessage, setNewMessage] = useState('');
-  const [partnerName] = useState('Partner');
-  const [partnerUid] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
 
-  const handleError = useCallback((err: any, operation: string) => {
-    const errorMessage = err?.message || `Wystąpił błąd podczas ${operation}`;
-    setError(errorMessage);
-    if (!isOffline) {
-      showToast({ type: 'error', message: errorMessage });
-    }
-  }, [showToast, isOffline]);
+  const isLoading =
+    tasksLoading ||
+    habitsLoading ||
+    budgetLoading ||
+    notesLoading ||
+    goalsLoading ||
+    calendarLoading ||
+    statsLoading ||
+    messagesLoading ||
+    weekStatsLoading;
 
-  useEffect(() => {
-    const isLoading = tasksLoading || habitsLoading || budgetLoading || notesLoading ||
-      goalsLoading || calendarLoading || statsLoading || messagesLoading || weekStatsLoading;
-    setLoading(isLoading);
-  }, [tasksLoading, habitsLoading, budgetLoading, notesLoading, goalsLoading, calendarLoading, statsLoading, messagesLoading, weekStatsLoading]);
+  const currentDate = new Date();
+  const todayKey = format(currentDate, 'yyyy-MM-dd');
+  const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
+  const formattedDate = format(currentDate, 'EEEE, d MMMM', { locale: pl });
+  const firstName = user?.displayName?.split(' ')[0] || 'Przyjacielu';
 
-  useEffect(() => {
-    const hasError = tasksError || budgetError;
-    if (hasError) {
-      handleError(hasError, 'loading dashboard data');
-    }
-  }, [tasksError, budgetError, handleError]);
+  const openTasks = useMemo(() => tasks.filter((task) => !task.completed), [tasks]);
+  const completedTasks = useMemo(() => tasks.filter((task) => task.completed), [tasks]);
+  const todayTasks = useMemo(
+    () => openTasks.filter((task) => (task.dueDate ? task.dueDate.slice(0, 10) === todayKey : false)),
+    [openTasks, todayKey],
+  );
+  const focusTasks = useMemo(
+    () => (todayTasks.length > 0 ? todayTasks.slice(0, 5) : openTasks.slice(0, 5)),
+    [openTasks, todayTasks],
+  );
+  const completedToday = useMemo(
+    () =>
+      completedTasks.filter((task) => {
+        const completedAt = toDateValue(task.completedAt);
+        return completedAt ? format(completedAt, 'yyyy-MM-dd') === todayKey : false;
+      }).length,
+    [completedTasks, todayKey],
+  );
 
-  // Derived stats
-  const dashboardStats = useMemo(() => {
-    const today = format(new Date(), 'yyyy-MM-dd');
-    const now = new Date();
+  const habitsDoneToday = useMemo(
+    () => habits.filter((habit) => habit.completions?.[todayKey]).length,
+    [habits, todayKey],
+  );
 
-    const completedTasks = tasks.filter(t => t.completed).length;
-    const pendingTasks = tasks.filter(t => !t.completed).length;
-    const overdueTasks = tasks.filter(t => !t.completed && t.dueDate && new Date(t.dueDate) < now).length;
+  const currentStreak = useMemo(
+    () => Math.max(stats?.streak ?? 0, ...habits.map((habit) => habit.streak ?? 0), 0),
+    [habits, stats?.streak],
+  );
 
-    const completedHabits = habits.filter(h => h.completions?.[today]).length;
-    const habitStreak = habits.reduce((max, h) => Math.max(max, h.streak || 0), 0);
+  const todayEvents = useMemo(
+    () => calendarEvents.filter((event) => event.date === todayKey).slice(0, 4),
+    [calendarEvents, todayKey],
+  );
 
-    const income = budgetAnalytics.totalIncome || 0;
-    const expenses = budgetAnalytics.totalExpenses || 0;
-    const balance = budgetAnalytics.balance || 0;
+  const nextEvents = useMemo(
+    () =>
+      calendarEvents
+        .filter((event) => event.date >= todayKey)
+        .sort((left, right) => left.date.localeCompare(right.date))
+        .slice(0, 5),
+    [calendarEvents, todayKey],
+  );
 
-    const todayEvents = calendarEvents.filter(e => e.date === today).length;
-    const upcomingEvents = calendarEvents.filter(e => new Date(e.date) >= now && e.date !== today).length;
+  const levelProgress = useMemo(() => {
+    const xp = stats?.xp ?? 0;
+    const xpToNextLevel = Math.max(stats?.xpToNextLevel ?? 1, 1);
+    return Math.round(Math.min(100, (xp / xpToNextLevel) * 100));
+  }, [stats?.xp, stats?.xpToNextLevel]);
 
-    const unreadMessages = messages.filter(m => !m.read).length;
+  const weekDays = useMemo(
+    () =>
+      Array.from({ length: 7 }, (_, index) => {
+        const date = addDays(weekStart, index);
+        const key = format(date, 'yyyy-MM-dd');
+        const completed = completedTasks.filter((task) => {
+          const completedAt = toDateValue(task.completedAt);
+          return completedAt ? format(completedAt, 'yyyy-MM-dd') === key : false;
+        }).length;
 
-    return {
-      tasks: {
-        total: tasks.length,
-        completed: completedTasks,
-        pending: pendingTasks,
-        overdue: overdueTasks,
-        completionRate: tasks.length > 0 ? Math.round((completedTasks / tasks.length) * 100) : 0,
-      },
-      habits: {
-        total: habits.length,
-        completed: completedHabits,
-        streak: habitStreak,
-      },
-      budget: {
-        total: income + expenses,
-        income,
-        expenses,
-        balance,
-      },
-      notes: {
-        total: notesCount || 0,
-      },
-      goals: {
-        total: goalsCount || 0,
-        inProgress: goalsInProgress || 0,
-        completed: goalsCompleted || 0,
-      },
-      calendar: {
-        today: todayEvents,
-        upcoming: upcomingEvents,
-      },
-      messages: {
-        total: messages.length,
-        unread: unreadMessages,
-      },
-    };
-  }, [tasks, habits, budgetAnalytics, notesCount, goalsCount, goalsInProgress, goalsCompleted, calendarEvents, messages]);
+        return {
+          key,
+          shortLabel: format(date, 'EEEEE', { locale: pl }),
+          value: completed,
+          isToday: key === todayKey,
+        };
+      }),
+    [completedTasks, todayKey, weekStart],
+  );
 
-  const getGreeting = useCallback(() => {
-    const hour = new Date().getHours();
-    if (hour < 12) return 'Dzień dobry';
-    if (hour < 18) return 'Witaj';
-    return 'Dobry wieczór';
-  }, []);
+  const maxWeekValue = useMemo(
+    () => Math.max(...weekDays.map((day) => day.value), 1),
+    [weekDays],
+  );
 
-  const firstName = useMemo(() => user?.displayName?.split(' ')[0] || 'Użytkowniku', [user]);
-  const userInitial = useMemo(() => user?.displayName?.[0]?.toUpperCase() || 'T', [user]);
-  const partnerInitial = useMemo(() => partnerName?.[0]?.toUpperCase() || 'P', [partnerName]);
+  const messagePreview = useMemo(() => [...messages].slice(0, 3).reverse(), [messages]);
 
-  const today = useMemo(() => format(new Date(), 'yyyy-MM-dd'), []);
-  const monday = useMemo(() => startOfWeek(new Date(), { weekStartsOn: 1 }), []);
-  const formattedDate = useMemo(() => format(new Date(), 'EEEE, d MMMM', { locale: pl }), []);
+  const insights = useMemo(
+    () => [
+      `${openTasks.length} otwartych zadań czeka na decyzję.`,
+      `${habitsDoneToday}/${habits.length || 0} nawyków odhaczonych na dziś.`,
+      `${todayEvents.length} wydarzeń zaplanowanych na dziś.`,
+    ],
+    [habits.length, habitsDoneToday, openTasks.length, todayEvents.length],
+  );
 
-  const weekDays = useMemo(() =>
-    ['Pon', 'Wt', 'Śr', 'Czw', 'Pt', 'Sob', 'Nd'].map((label, i) => {
-      const d = new Date(monday);
-      d.setDate(monday.getDate() + i);
-      return { label, date: d, key: format(d, 'yyyy-MM-dd') };
-    }),
-  [monday]);
+  const primaryError = tasksError || budgetError;
 
-  const todayEvents = useMemo(() => calendarEvents.filter(e => e.date === today), [calendarEvents, today]);
-
-  const weeklyCompletions = useMemo(() => {
-    return weekDays.map(({ key }) => {
-      const count = tasks.filter(t => {
-        if (!t.completed || !t.completedAt) return false;
-        const d = t.completedAt instanceof Object && 'toDate' in t.completedAt
-          ? (t.completedAt as any).toDate()
-          : new Date(t.completedAt as any);
-        return format(d, 'yyyy-MM-dd') === key;
-      }).length;
-      return count;
-    });
-  }, [tasks, weekDays]);
-
-  const openTasks = useMemo(() => tasks.filter(t => !t.completed), [tasks]);
-  const todayTasks = useMemo(() => openTasks.filter(t => t.dueDate === today), [openTasks, today]);
-  const xpProgress = useMemo(() => ((stats?.xp ?? 0) / (stats?.xpToNextLevel ?? 3000)) * 100, [stats]);
-
-  const statsCards = useMemo(() => [
-    {
-      label: 'Zadania',
-      value: dashboardStats.tasks.pending,
-      sub: 'do zrobienia',
-      icon: CheckCircle2,
-      color: 'text-indigo-600',
-      bg: 'bg-indigo-50',
-      bar: 'bg-indigo-500',
-      to: '/tasks',
-      trend: dashboardStats.tasks.overdue > 0 ? 'down' : 'up',
-      percentage: dashboardStats.tasks.completionRate,
-    },
-    {
-      label: 'Nawyki',
-      value: dashboardStats.habits.total,
-      sub: 'na dziś',
-      icon: Flame,
-      color: 'text-orange-500',
-      bg: 'bg-orange-50',
-      bar: 'bg-orange-400',
-      to: '/habits',
-      trend: dashboardStats.habits.completed > 0 ? 'up' : 'neutral',
-      percentage: dashboardStats.habits.total > 0 ? Math.round((dashboardStats.habits.completed / dashboardStats.habits.total) * 100) : 0,
-    },
-    {
-      label: 'Finanse',
-      value: `${dashboardStats.budget.balance.toFixed(0)} zł`,
-      sub: 'bilans',
-      icon: Wallet,
-      color: dashboardStats.budget.balance >= 0 ? 'text-teal-600' : 'text-rose-600',
-      bg: dashboardStats.budget.balance >= 0 ? 'bg-teal-50' : 'bg-rose-50',
-      bar: dashboardStats.budget.balance >= 0 ? 'bg-teal-500' : 'bg-rose-500',
-      to: '/budget',
-      trend: dashboardStats.budget.balance >= 0 ? 'up' : 'down',
-      percentage: dashboardStats.budget.total > 0 ? Math.round((dashboardStats.budget.balance / dashboardStats.budget.total) * 100) : 0,
-    },
-    {
-      label: 'Notatki',
-      value: dashboardStats.notes.total,
-      sub: 'notatek',
-      icon: NotebookPen,
-      color: 'text-amber-600',
-      bg: 'bg-amber-50',
-      bar: 'bg-amber-400',
-      to: '/notes',
-      trend: 'neutral',
-      percentage: 100,
-    },
-    {
-      label: 'Cele',
-      value: dashboardStats.goals.inProgress,
-      sub: 'w toku',
-      icon: Heart,
-      color: 'text-rose-500',
-      bg: 'bg-rose-50',
-      bar: 'bg-rose-500',
-      to: '/goals',
-      trend: dashboardStats.goals.completed > 0 ? 'up' : 'neutral',
-      percentage: dashboardStats.goals.total > 0 ? Math.round((dashboardStats.goals.inProgress / dashboardStats.goals.total) * 100) : 0,
-    },
-  ], [dashboardStats]);
-
-  const handleSendMessage = useCallback(async () => {
+  const sendCurrentMessage = async () => {
     const trimmedMessage = newMessage.trim();
-    if (!trimmedMessage || !user) {
-      if (!trimmedMessage) showToast({ type: 'warning', message: 'Wpisz wiadomość' });
+
+    if (!trimmedMessage) {
+      showToast({ type: 'warning', message: 'Wpisz wiadomość, zanim ją wyślesz.' });
       return;
     }
+
     if (trimmedMessage.length > 500) {
-      showToast({ type: 'warning', message: 'Wiadomość nie może przekraczać 500 znaków' });
+      showToast({ type: 'warning', message: 'Wiadomość może mieć maksymalnie 500 znaków.' });
       return;
     }
+
     if (isOffline) {
-      showToast({ type: 'offline', message: 'Nie można wysłać wiadomości w trybie offline' });
+      showToast({ type: 'offline', message: 'Wysyłanie wiadomości jest niedostępne offline.' });
       return;
     }
+
     try {
       await sendMessage(trimmedMessage);
       setNewMessage('');
-      showToast({ type: 'success', message: 'Wiadomość wysłana' });
-    } catch (err) {
-      handleError(err, 'sending message');
+      showToast({ type: 'success', message: 'Wiadomość została wysłana.' });
+    } catch {
+      showToast({ type: 'error', message: 'Nie udało się wysłać wiadomości.' });
     }
-  }, [newMessage, sendMessage, user, isOffline, showToast, handleError]);
+  };
 
   return (
-    <div className="space-y-6 pb-20 bg-gray-50 min-h-screen">
-      {/* Error display */}
-      {error && (
-        <div className="mb-6 p-4 bg-rose-50 border border-rose-200 rounded-xl">
-          <div className="flex items-center gap-3">
-            <AlertTriangle size={20} className="text-rose-600" />
-            <div>
-              <h4 className="font-bold text-rose-900">Błąd</h4>
-              <p className="text-sm text-rose-700">{error}</p>
+    <div className="space-y-6 pb-24">
+      {primaryError ? (
+        <div className="rounded-[1.5rem] border border-[rgba(211,91,87,0.18)] bg-[rgba(211,91,87,0.08)] px-5 py-4 text-sm font-semibold text-[var(--color-danger)]">
+          {primaryError}
+        </div>
+      ) : null}
+
+      <section className="grid gap-4 xl:grid-cols-[1.4fr_0.9fr]">
+        <div className="relative overflow-hidden rounded-[2rem] border border-white/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.92),rgba(255,240,230,0.9))] p-6 shadow-[0_28px_80px_rgba(48,42,36,0.14)] sm:p-7">
+          <div className="absolute right-[-4rem] top-[-4rem] h-40 w-40 rounded-full bg-[rgba(239,99,81,0.14)] blur-3xl" />
+          <div className="absolute bottom-[-5rem] left-[-3rem] h-40 w-40 rounded-full bg-[rgba(40,148,156,0.12)] blur-3xl" />
+
+          <div className="relative">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="badge bg-[rgba(239,99,81,0.1)] text-[var(--color-accent)]">
+                <Sparkles size={12} />
+                Nowy rytm dnia
+              </span>
+              {isOffline ? (
+                <span className="badge bg-[rgba(211,91,87,0.1)] text-[var(--color-danger)]">
+                  <WifiOff size={12} />
+                  Offline
+                </span>
+              ) : null}
             </div>
-            <button
-              type="button"
-              onClick={() => setError(null)}
-              className="ml-auto text-rose-600 hover:text-rose-800 text-sm font-medium"
+
+            <p className="mt-5 text-overline capitalize">{formattedDate}</p>
+            <h1 className="mt-2 max-w-2xl font-display text-4xl font-bold tracking-[-0.08em] text-[var(--color-ink)] sm:text-5xl">
+              Dzień dobry, {firstName}. Zobaczmy, co dziś najbardziej pcha Cię do przodu.
+            </h1>
+            <p className="mt-4 max-w-2xl text-base leading-7 text-[var(--color-ink-soft)]">
+              Masz {openTasks.length} aktywnych zadań, {todayEvents.length} wydarzeń na dziś i serię {currentStreak} dni konsekwencji.
+            </p>
+
+            <div className="mt-6 grid gap-3 sm:grid-cols-3">
+              {insights.map((item) => (
+                <div key={item} className="rounded-[1.3rem] border border-white/70 bg-white/72 px-4 py-4 backdrop-blur-xl">
+                  <p className="text-sm font-semibold leading-6 text-[var(--color-ink)]">{item}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="surface-panel flex flex-col justify-between gap-5 p-6">
+          <div>
+            <p className="text-overline">Postęp poziomu</p>
+            <div className="mt-3 flex items-end justify-between gap-3">
+              <div>
+                <p className="font-display text-4xl font-bold tracking-[-0.08em] text-[var(--color-ink)]">
+                  {(stats?.xp ?? 0).toLocaleString('pl-PL')}
+                </p>
+                <p className="text-sm text-[var(--color-ink-soft)]">
+                  {stats?.xpToNextLevel ?? 1000} XP do kolejnego poziomu
+                </p>
+              </div>
+              <div className="rounded-[1.2rem] bg-[rgba(40,148,156,0.08)] px-3 py-2 text-right">
+                <p className="text-xs font-black uppercase tracking-[0.2em] text-[var(--color-calm)]">
+                  Level
+                </p>
+                <p className="font-display text-2xl font-bold tracking-[-0.06em] text-[var(--color-ink)]">
+                  {stats?.level ?? 1}
+                </p>
+              </div>
+            </div>
+            <div className="mt-5 h-3 overflow-hidden rounded-full bg-[rgba(32,26,23,0.06)]">
+              <div
+                className="h-full rounded-full bg-[linear-gradient(135deg,var(--color-accent),var(--color-calm))] transition-all duration-500"
+                style={{ width: `${levelProgress}%` }}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <Link
+              to="/tasks"
+              className="rounded-[1.35rem] border border-[var(--color-line)] bg-[rgba(239,99,81,0.08)] px-4 py-4 transition-transform hover:-translate-y-0.5"
             >
-              X
-            </button>
+              <p className="text-overline">Zadania</p>
+              <p className="mt-2 text-sm font-bold text-[var(--color-ink)]">Dodaj szybki focus</p>
+            </Link>
+            <Link
+              to="/calendar"
+              className="rounded-[1.35rem] border border-[var(--color-line)] bg-[rgba(40,148,156,0.08)] px-4 py-4 transition-transform hover:-translate-y-0.5"
+            >
+              <p className="text-overline">Kalendarz</p>
+              <p className="mt-2 text-sm font-bold text-[var(--color-ink)]">Zobacz plan tygodnia</p>
+            </Link>
           </div>
         </div>
-      )}
+      </section>
 
-      {/* Loading state */}
-      {loading && (
-        <div className="flex items-center justify-center py-20">
-          <div className="text-center">
-            <div className="w-12 h-12 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mx-auto mb-4"></div>
-            <p className="text-gray-500">Ładowanie dashboard...</p>
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <MetricCard
+          title="Zadania"
+          value={String(openTasks.length)}
+          detail={`${completedToday} ukończonych dzisiaj`}
+          icon={CheckCheck}
+          to="/tasks"
+          accent="#ef6351"
+          accentSoft="rgba(239,99,81,0.12)"
+          progress={tasks.length ? Math.round((completedTasks.length / tasks.length) * 100) : 0}
+        />
+        <MetricCard
+          title="Nawyki"
+          value={`${habitsDoneToday}/${habits.length || 0}`}
+          detail={`Seria ${currentStreak} dni`}
+          icon={Flame}
+          to="/habits"
+          accent="#ea8f3b"
+          accentSoft="rgba(242,169,59,0.14)"
+          progress={habits.length ? Math.round((habitsDoneToday / habits.length) * 100) : 0}
+        />
+        <MetricCard
+          title="Budżet"
+          value={`${budgetAnalytics.balance.toFixed(0)} zł`}
+          detail={`${transactions.length} zapisanych transakcji`}
+          icon={Wallet}
+          to="/budget"
+          accent="#28949c"
+          accentSoft="rgba(40,148,156,0.12)"
+          progress={budgetAnalytics.totalIncome > 0 ? Math.round((budgetAnalytics.balance / budgetAnalytics.totalIncome) * 100) : 0}
+        />
+        <MetricCard
+          title="Cele"
+          value={String(goalsInProgress)}
+          detail={`${goalsCompleted}/${goalsCount || 0} ukończonych`}
+          icon={Target}
+          to="/goals"
+          accent="#8e5cf1"
+          accentSoft="rgba(142,92,241,0.12)"
+          progress={goalsCount ? Math.round((goalsCompleted / goalsCount) * 100) : 0}
+        />
+      </section>
+
+      {isLoading ? (
+        <section className="grid gap-4 xl:grid-cols-[1.35fr_1fr]">
+          <div className="surface-panel space-y-4 p-6">
+            <div className="skeleton h-5 w-40" />
+            <div className="skeleton h-20 w-full rounded-[1.4rem]" />
+            <div className="skeleton h-20 w-full rounded-[1.4rem]" />
+            <div className="skeleton h-20 w-full rounded-[1.4rem]" />
           </div>
-        </div>
-      )}
-
-      {!loading && (
-        <>
-          {/* HEADER */}
-          <div className="flex items-start justify-between gap-6">
-            <div>
-              <p className="text-sm font-medium text-indigo-500 mb-1 capitalize">{formattedDate}</p>
-              <h1 className="text-4xl font-black text-gray-900 leading-tight">
-                {getGreeting()}, {firstName}! 👋
-              </h1>
-              <p className="text-gray-500 mt-1 text-base">
-                Masz {dashboardStats.tasks.pending} zadań do zrobienia.
-              </p>
-            </div>
-
-            {/* XP Widget */}
-            <div className="bg-white rounded-2xl px-6 py-4 border border-gray-100 shadow-sm flex items-center gap-5 shrink-0">
-              <div className="text-right">
-                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">XP</p>
-                <p className="text-3xl font-black text-gray-900 leading-none">{(stats?.xp ?? 0).toLocaleString('pl')}</p>
-                <p className="text-xs text-gray-400 mt-0.5">/ {(stats?.xpToNextLevel ?? 3000).toLocaleString('pl')} do kolejnego poziomu</p>
-              </div>
-              <ProgressCircle progress={xpProgress} size={72} strokeWidth={6} color="#6366f1">
-                <div className="text-center">
-                  <p className="text-lg font-black text-indigo-600 leading-none">{stats?.level ?? 1}</p>
-                  <p className="text-[9px] text-gray-400 uppercase tracking-wide">poz.</p>
-                </div>
-              </ProgressCircle>
-            </div>
+          <div className="surface-panel space-y-4 p-6">
+            <div className="skeleton h-5 w-32" />
+            <div className="skeleton h-56 w-full rounded-[1.4rem]" />
           </div>
-
-          {/* STATS ROW (5 cards) */}
-          <div className="grid grid-cols-5 gap-4">
-            {statsCards.map(({ label, value, sub, icon: Icon, color, bg, bar, to, trend, percentage }) => (
-              <Link to={to} key={label}>
-                <motion.div
-                  whileHover={{ y: -2, scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 cursor-pointer relative overflow-hidden"
+        </section>
+      ) : (
+        <section className="grid gap-4 xl:grid-cols-[1.35fr_1fr]">
+          <div className="space-y-4">
+            <Panel
+              title="Dzisiejszy focus"
+              description={
+                todayTasks.length > 0
+                  ? 'Najbliższe zadania zaplanowane na dziś.'
+                  : 'Nie masz terminów na dziś, więc pokazuję najważniejsze otwarte rzeczy.'
+              }
+              action={
+                <Link
+                  to="/tasks"
+                  className="inline-flex items-center gap-2 rounded-full bg-[rgba(32,26,23,0.06)] px-3 py-2 text-xs font-bold text-[var(--color-ink)] transition-colors hover:bg-[rgba(32,26,23,0.1)]"
                 >
-                  {trend && (
-                    <div className="absolute top-2 right-2">
-                      {trend === 'up' && <TrendingUp size={14} className="text-green-500" />}
-                      {trend === 'down' && <TrendingUp size={14} className="text-rose-500 transform rotate-180" />}
-                      {trend === 'neutral' && <Activity size={14} className="text-gray-400" />}
-                    </div>
-                  )}
-                  <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center mb-3', bg)}>
-                    <Icon size={18} className={color} />
-                  </div>
-                  <p className="text-2xl font-black text-gray-900 leading-none">{value}</p>
-                  <p className="text-xs text-gray-400 mt-1">{sub}</p>
-                  <div className="mt-3">
-                    <div className="h-0.5 w-full bg-gray-100 rounded-full overflow-hidden">
-                      <div
-                        className={cn('h-full rounded-full transition-all duration-500 [width:var(--bar-pct)]', bar)}
-                        // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
-                        {...{ style: { '--bar-pct': `${percentage}%` } as React.CSSProperties }}
-                      />
-                    </div>
-                  </div>
-                  {percentage > 0 && (
-                    <div className="mt-1 text-xs text-gray-400">{percentage}%</div>
-                  )}
-                </motion.div>
-              </Link>
-            ))}
-          </div>
-
-          {/* MAIN GRID */}
-          <div className="grid grid-cols-3 gap-6">
-            {/* LEFT COLUMN (2/3) */}
-            <div className="col-span-2 space-y-6">
-              {/* TASKS CARD */}
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
-                <div className="flex items-center justify-between px-6 pt-5 pb-4">
-                  <div className="flex items-center gap-2">
-                    <p className="font-black text-gray-900">Dzisiejsze zadania</p>
-                    <span className="bg-indigo-100 text-indigo-700 text-xs font-black px-2 py-0.5 rounded-full">{openTasks.length}</span>
-                  </div>
-                  <Link to="/tasks" className="flex items-center gap-1 text-indigo-500 hover:text-indigo-700 text-sm font-medium">
-                    <Plus size={14} /> Dodaj zadanie
-                  </Link>
-                </div>
-
-                <div className="px-6 pb-2">
-                  {todayTasks.length === 0 ? (
-                    <div className="py-8 text-center">
-                      <CheckCircle2 size={32} className="text-gray-200 mx-auto mb-2" />
-                      <p className="text-sm text-gray-400">Wszystko zrobione!</p>
-                    </div>
-                  ) : (
-                    todayTasks.map((task) => {
-                      const catClass = categoryColors[task.category] ?? 'bg-gray-100 text-gray-600';
-                      return (
-                        <div key={task.id} className="flex items-center gap-3 py-3 border-b border-gray-50 last:border-0">
-                          <div className="w-8 h-8 rounded-xl bg-gray-50 flex items-center justify-center text-base shrink-0">
-                            {task.completed ? <CheckCircle2 size={18} className="text-green-500" /> : <Circle size={18} className="text-gray-300" />}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-gray-900 truncate">{task.title}</p>
-                            {task.dueDate && (
-                              <p className="text-xs text-gray-400 mt-0.5">
-                                Dziś, {format(new Date(task.dueDate), 'HH:mm')}
-                              </p>
-                            )}
-                          </div>
-                          {task.category && (
-                            <span className={cn('text-xs font-semibold px-2.5 py-0.5 rounded-full shrink-0', catClass)}>
-                              {task.category}
-                            </span>
-                          )}
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-
-                {openTasks.length > 0 && (
-                  <div className="px-6 pb-5 pt-1">
-                    <Link to="/tasks" className="text-sm text-indigo-500 hover:text-indigo-700 font-medium">
-                      Zobacz wszystkie zadania →
-                    </Link>
-                  </div>
-                )}
-              </div>
-
-              {/* HABITS CARD */}
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
-                <div className="flex items-center justify-between px-6 pt-5 pb-4">
-                  <div className="flex items-center gap-2">
-                    <p className="font-black text-gray-900">Nawyki na dziś</p>
-                    <span className="bg-orange-100 text-orange-700 text-xs font-black px-2 py-0.5 rounded-full">{habits.length}</span>
-                  </div>
-                  <Link to="/habits" className="flex items-center gap-1 text-indigo-500 hover:text-indigo-700 text-sm font-medium">
-                    <Plus size={14} /> Dodaj nawyk
-                  </Link>
-                </div>
-
-                <div className="px-6 pb-2">
-                  {habits.length === 0 ? (
-                    <div className="py-8 text-center">
-                      <Flame size={32} className="text-gray-200 mx-auto mb-2" />
-                      <p className="text-sm text-gray-400">Brak nawyków</p>
-                    </div>
-                  ) : (
-                    habits.slice(0, 6).map((habit) => {
-                      const done = !!habit.completions?.[today];
-                      const streak = habit.streak || 0;
-                      return (
-                        <div key={habit.id} className="flex items-center gap-3 py-3 border-b border-gray-50 last:border-0">
-                          <div className="w-8 h-8 rounded-xl bg-gray-50 flex items-center justify-center text-base shrink-0">
-                            {habit.emoji || '⚡'}
-                          </div>
-                          <p className="flex-1 text-sm font-semibold text-gray-900 truncate">{habit.name}</p>
-                          {streak > 0 && (
-                            <span className="flex items-center gap-0.5 text-xs text-orange-500 font-bold shrink-0">
-                              🔥 {streak}
-                            </span>
-                          )}
-                          <div className="w-6 h-6 rounded-full flex items-center justify-center shrink-0">
-                            {done
-                              ? <CheckCircle2 size={20} className="text-green-500 shrink-0" />
-                              : <Circle size={20} className="text-gray-200 shrink-0" />
-                            }
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-
-                {habits.length > 0 && (
-                  <div className="px-6 pb-5 pt-1">
-                    <Link to="/habits" className="text-sm text-indigo-500 hover:text-indigo-700 font-medium">
-                      Zobacz wszystkie nawyki →
-                    </Link>
-                  </div>
-                )}
-              </div>
-
-              {/* CALENDAR + DAY SUMMARY */}
-              <div className="grid grid-cols-2 gap-6">
-                {/* MINI CALENDAR */}
-                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-                  <div className="flex items-center justify-between mb-4">
-                    <p className="font-black text-gray-900">Kalendarz</p>
-                    <Link to="/calendar" className="text-sm text-indigo-500 hover:text-indigo-700 font-medium">
-                      Zobacz cały kalendarz
-                    </Link>
-                  </div>
-
-                  <div className="grid grid-cols-7 gap-1 mb-3">
-                    {weekDays.map(({ label, date, key }) => {
-                      const isToday = key === today;
-                      const hasEvent = calendarEvents.some(e => e.date === key);
-                      return (
-                        <Link to={`/calendar?date=${key}`} key={key}>
-                          <div
-                            className={cn(
-                              'aspect-square flex items-center justify-center text-xs font-medium rounded-lg transition-colors',
-                              isToday ? 'bg-indigo-600 text-white hover:bg-indigo-700' : 'text-gray-700'
-                            )}
-                          >
-                            {date.getDate()}
-                          </div>
-                          {hasEvent && <div className="w-1 h-1 bg-indigo-400 rounded-full mx-auto mt-1" />}
-                        </Link>
-                      );
-                    })}
-                  </div>
-
-                  <div className="border-t border-gray-50 pt-3 space-y-2">
-                    {todayEvents.length === 0 ? (
-                      <div className="flex items-center gap-2 text-gray-400">
-                        <Clock size={13} />
-                        <p className="text-xs">Brak wydarzeń dziś</p>
-                      </div>
-                    ) : todayEvents.slice(0, 2).map((ev) => (
-                      <div key={ev.id} className="flex items-center gap-2">
-                        <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0" />
-                        <p className="text-xs text-gray-600 truncate">{ev.title}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* DAY SUMMARY */}
-                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-                  <div className="flex items-center justify-between mb-4">
-                    <p className="font-black text-gray-900">Podsumowanie dnia</p>
-                    <Link to="/tasks" className="text-sm text-indigo-500 hover:text-indigo-700 font-medium">
-                      Zobacz statystyki
-                    </Link>
-                  </div>
-
-                  <div className="flex items-center gap-4">
-                    <ProgressCircle progress={weekStats?.progressPercentage || 0} size={72} strokeWidth={7} color="#6366f1">
-                      <div className="text-center">
-                        <p className="text-lg font-black text-indigo-600 leading-none">{weekStats?.progressPercentage || 0}%</p>
-                      </div>
-                    </ProgressCircle>
-                    <div className="flex-1">
-                      <p className="font-bold text-gray-900 text-sm">
-                        {(weekStats?.progressPercentage || 0) >= 70 ? 'Świetna robota!' : (weekStats?.progressPercentage || 0) >= 40 ? 'Dobrze idzie!' : 'Do przodu!'}
-                      </p>
-                      <p className="text-xs text-gray-400 mt-0.5">
-                        Wykonałeś {weekStats?.completedThisWeek || 0} z {weekStats?.totalThisWeek || 0} zadań w tym tygodniu.
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Mini bar chart */}
-                  <div className="flex items-end gap-1.5 mt-4 h-10">
-                    {(() => {
-                      const maxCount = Math.max(...weeklyCompletions, 1);
-                      return weekDays.map(({ label, key }, i) => {
-                        const isToday = key === today;
-                        const height = Math.round((weeklyCompletions[i] / maxCount) * 100) || 4;
-                        return (
-                          <div key={key} className="flex-1 flex flex-col items-center gap-1">
-                            <div
-                              className={cn('w-full rounded-sm transition-all [height:var(--bar-h)]', isToday ? 'bg-indigo-500' : 'bg-gray-100')}
-                              // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
-                              {...{ style: { '--bar-h': `${height}%` } as React.CSSProperties }}
-                            />
-                            <p className="text-[9px] text-gray-400">{label[0]}</p>
-                          </div>
-                        );
-                      });
-                    })()}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* RIGHT SIDEBAR (1/3) */}
-            <div className="space-y-5">
-              {/* SHARED DASHBOARD */}
-              {partnerUid ? (
-                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-                  <div className="flex items-center justify-between mb-4">
-                    <p className="font-black text-gray-900">Wspólny dashboard</p>
-                    <Link to="/settings" className="text-sm text-indigo-500 hover:text-indigo-700 font-medium">Zobacz więcej</Link>
-                  </div>
-
-                  <div className="flex items-center justify-center gap-2 mb-3">
-                    <div className="w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold">
-                      {userInitial}
-                    </div>
-                    <div className="w-8 h-8 rounded-full bg-pink-100 flex items-center justify-center text-pink-600 font-bold text-sm">
-                      {partnerInitial}
-                    </div>
-                  </div>
-
-                  <p className="text-center text-sm text-gray-600 mb-4">Ty i {partnerName}</p>
-
-                  <div className="grid grid-cols-2 gap-3 text-center">
-                    <div className="bg-gray-50 rounded-xl p-3">
-                      <p className="text-lg font-black text-gray-900">{dashboardStats.tasks.pending}</p>
-                      <p className="text-xs text-gray-400">zadań dziś</p>
-                    </div>
-                    <div className="bg-gray-50 rounded-xl p-3">
-                      <p className="text-lg font-black text-gray-900">{dashboardStats.tasks.completionRate}%</p>
-                      <p className="text-xs text-gray-400">wykonanych</p>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-                  <div className="text-center">
-                    <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-3">
-                      <Heart size={20} className="text-gray-400" />
-                    </div>
-                    <p className="font-black text-gray-900 mb-2">Dodaj partnera</p>
-                    <p className="text-sm text-gray-400 mb-4">Śledźcie wspólne cele i zadania</p>
-                    <Link to="/settings" className="text-sm text-indigo-500 hover:text-indigo-700 font-medium">
-                      Ustawienia →
-                    </Link>
-                  </div>
-                </div>
-              )}
-
-              {/* CHAT */}
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
-                <div className="flex items-center gap-2 px-5 pt-5 pb-4">
-                  <MessageCircle size={18} className="text-indigo-600" />
-                  <p className="font-black text-gray-900">Wiadomości</p>
-                </div>
-
-                <div className="px-5 pb-3">
-                  {messages.length === 0 ? (
-                    <div className="py-8 text-center">
-                      <MessageCircle size={32} className="text-gray-200 mx-auto mb-2" />
-                      <p className="text-sm text-gray-400">Brak wiadomości</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-3 max-h-48 overflow-y-auto">
-                      {messages.slice(-3).map((msg) => (
-                        <div key={msg.id} className="flex gap-2">
-                          <div className="w-6 h-6 rounded-full bg-indigo-100 flex items-center justify-center text-xs font-bold text-indigo-600 shrink-0">
-                            {msg.sender?.[0]?.toUpperCase() || 'U'}
-                          </div>
-                          <div className="flex-1">
-                            <p className="text-xs text-gray-500 mb-0.5">{msg.sender}</p>
-                            <p className="text-sm text-gray-800 bg-gray-50 rounded-lg px-3 py-2">{msg.content}</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <div className="px-5 pb-5">
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={newMessage}
-                      onChange={(e) => setNewMessage(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                      placeholder="Napisz wiadomość..."
-                      className="flex-1 text-xs px-3 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                    />
-                    <motion.button
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={handleSendMessage}
-                      disabled={!newMessage.trim()}
-                      className="w-9 h-9 bg-indigo-600 rounded-xl flex items-center justify-center text-white disabled:opacity-40 shrink-0"
+                  <Plus size={14} />
+                  Dodaj
+                </Link>
+              }
+            >
+              <div className="space-y-3">
+                {focusTasks.length > 0 ? (
+                  focusTasks.map((task) => (
+                    <div
+                      key={task.id}
+                      className="flex items-center gap-3 rounded-[1.35rem] border border-[var(--color-line)] bg-white/72 px-4 py-4"
                     >
-                      <Send size={15} />
-                    </motion.button>
-                  </div>
-                </div>
-              </div>
-
-              {/* QUICK ADD */}
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-                <p className="font-black text-gray-900 mb-4">Szybkie dodawanie</p>
-                <div className="grid grid-cols-4 gap-2">
-                  {[
-                    { label: 'Zadanie', icon: CheckCircle2, color: 'text-indigo-600', bg: 'bg-indigo-50', to: '/tasks' },
-                    { label: 'Nawyk', icon: Flame, color: 'text-orange-500', bg: 'bg-orange-50', to: '/habits' },
-                    { label: 'Notatka', icon: NotebookPen, color: 'text-violet-600', bg: 'bg-violet-50', to: '/notes' },
-                    { label: 'Wydatki', icon: Wallet, color: 'text-emerald-600', bg: 'bg-emerald-50', to: '/budget' },
-                  ].map(({ label, icon: Icon, color, bg, to }) => (
-                    <Link to={to} key={label}>
-                      <motion.div
-                        whileHover={{ y: -2, scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        className="flex flex-col items-center gap-1.5 cursor-pointer"
-                      >
-                        <div className={cn('w-11 h-11 rounded-xl flex items-center justify-center', bg)}>
-                          <Icon size={18} className={color} />
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[1rem] bg-[rgba(239,99,81,0.1)] text-[var(--color-accent)]">
+                        <CheckCheck size={18} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-bold text-[var(--color-ink)]">{task.title}</p>
+                        <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-[var(--color-ink-soft)]">
+                          <span className="rounded-full bg-[rgba(32,26,23,0.05)] px-2 py-1">
+                            {task.category || 'inne'}
+                          </span>
+                          <span>{formatDueDateLabel(task.dueDate)}</span>
                         </div>
-                        <p className="text-[10px] text-gray-500 font-medium text-center leading-tight">{label}</p>
-                      </motion.div>
-                    </Link>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="rounded-[1.4rem] border border-dashed border-[var(--color-line-strong)] bg-white/65 px-5 py-8 text-center">
+                    <p className="font-display text-2xl font-bold tracking-[-0.06em] text-[var(--color-ink)]">
+                      Czysta karta
+                    </p>
+                    <p className="mt-2 text-sm text-[var(--color-ink-soft)]">
+                      Nie ma dziś żadnych aktywnych zadań. Dobry moment na nowe priorytety.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </Panel>
+
+            <div className="grid gap-4 lg:grid-cols-2">
+              <Panel
+                title="Nawyki na dziś"
+                description="Krótki podgląd konsekwencji."
+                action={
+                  <Link to="/habits" className="text-sm font-bold text-[var(--color-accent)] hover:underline">
+                    Zobacz więcej
+                  </Link>
+                }
+              >
+                <div className="space-y-3">
+                  {habits.slice(0, 4).map((habit) => {
+                    const done = Boolean(habit.completions?.[todayKey]);
+                    return (
+                      <div
+                        key={habit.id}
+                        className="flex items-center gap-3 rounded-[1.2rem] bg-[rgba(242,169,59,0.08)] px-4 py-3"
+                      >
+                        <div className="flex h-10 w-10 items-center justify-center rounded-[1rem] bg-white text-lg">
+                          {habit.emoji || '⚡'}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-bold text-[var(--color-ink)]">{habit.name}</p>
+                          <p className="text-xs text-[var(--color-ink-soft)]">Seria: {habit.streak || 0} dni</p>
+                        </div>
+                        <span
+                          className={cn(
+                            'rounded-full px-3 py-1 text-xs font-bold',
+                            done
+                              ? 'bg-[rgba(47,158,103,0.12)] text-[var(--color-success)]'
+                              : 'bg-white/80 text-[var(--color-muted)]',
+                          )}
+                        >
+                          {done ? 'Gotowe' : 'Czeka'}
+                        </span>
+                      </div>
+                    );
+                  })}
+                  {habits.length === 0 ? (
+                    <p className="text-sm text-[var(--color-ink-soft)]">Dodaj pierwszy nawyk, aby zacząć budować serię.</p>
+                  ) : null}
+                </div>
+              </Panel>
+
+              <Panel
+                title="Puls tygodnia"
+                description="Jak wygląda tempo wykonywania zadań."
+              >
+                <div className="flex items-end gap-2">
+                  {weekDays.map((day) => (
+                    <div key={day.key} className="flex flex-1 flex-col items-center gap-2">
+                      <div className="flex h-28 w-full items-end rounded-[1rem] bg-[rgba(32,26,23,0.05)] p-1">
+                        <div
+                          className={cn(
+                            'w-full rounded-[0.8rem] transition-all duration-500',
+                            day.isToday ? 'bg-[linear-gradient(180deg,var(--color-accent),var(--color-accent-strong))]' : 'bg-[rgba(40,148,156,0.72)]',
+                          )}
+                          style={{
+                            height: `${Math.max(8, (day.value / maxWeekValue) * 100)}%`,
+                          }}
+                        />
+                      </div>
+                      <span className={cn('text-xs font-bold', day.isToday ? 'text-[var(--color-accent)]' : 'text-[var(--color-muted)]')}>
+                        {day.shortLabel}
+                      </span>
+                    </div>
                   ))}
                 </div>
-              </div>
+                <div className="mt-4 rounded-[1.2rem] bg-[rgba(40,148,156,0.08)] px-4 py-3 text-sm text-[var(--color-ink-soft)]">
+                  {weekStats?.progressPercentage ?? 0}% tygodniowego planu domknięte.
+                </div>
+              </Panel>
             </div>
           </div>
-        </>
+
+          <div className="space-y-4">
+            <Panel
+              title="Agenda"
+              description="Najbliższe wydarzenia i plan dnia."
+              action={
+                <Link to="/calendar" className="text-sm font-bold text-[var(--color-accent)] hover:underline">
+                  Otwórz kalendarz
+                </Link>
+              }
+            >
+              <div className="space-y-3">
+                {nextEvents.length > 0 ? (
+                  nextEvents.map((event) => (
+                    <div
+                      key={event.id}
+                      className="flex items-center gap-3 rounded-[1.2rem] border border-[var(--color-line)] bg-white/75 px-4 py-3"
+                    >
+                      <div className="flex h-10 w-10 items-center justify-center rounded-[1rem] bg-[rgba(40,148,156,0.1)] text-[var(--color-calm)]">
+                        <CalendarClock size={18} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-bold text-[var(--color-ink)]">{event.title}</p>
+                        <p className="text-xs text-[var(--color-ink-soft)]">
+                          {event.date}
+                          {event.time ? `, ${event.time}` : ''}
+                        </p>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-[var(--color-ink-soft)]">Brak nadchodzących wydarzeń. To dobry moment na zaplanowanie tygodnia.</p>
+                )}
+              </div>
+            </Panel>
+
+            <Panel title="Finanse i notatki" description="Szybki stan zasobów.">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-[1.3rem] bg-[rgba(40,148,156,0.08)] p-4">
+                  <div className="flex items-center gap-2 text-[var(--color-calm)]">
+                    <PiggyBank size={18} />
+                    <span className="text-overline">Budżet</span>
+                  </div>
+                  <p className="mt-3 font-display text-3xl font-bold tracking-[-0.06em] text-[var(--color-ink)]">
+                    {budgetAnalytics.balance.toFixed(0)} zł
+                  </p>
+                  <p className="mt-1 text-sm text-[var(--color-ink-soft)]">
+                    Wydatki: {budgetAnalytics.totalExpenses.toFixed(0)} zł
+                  </p>
+                </div>
+                <div className="rounded-[1.3rem] bg-[rgba(239,99,81,0.08)] p-4">
+                  <div className="flex items-center gap-2 text-[var(--color-accent)]">
+                    <NotebookPen size={18} />
+                    <span className="text-overline">Notatki</span>
+                  </div>
+                  <p className="mt-3 font-display text-3xl font-bold tracking-[-0.06em] text-[var(--color-ink)]">
+                    {notesCount}
+                  </p>
+                  <p className="mt-1 text-sm text-[var(--color-ink-soft)]">
+                    Aktywnych szkiców i zapisów
+                  </p>
+                </div>
+              </div>
+            </Panel>
+
+            <Panel
+              title="Wiadomości"
+              description="Szybki kontakt bez wychodzenia z panelu."
+              action={
+                <Link to="/chat" className="text-sm font-bold text-[var(--color-accent)] hover:underline">
+                  Otwórz chat
+                </Link>
+              }
+            >
+              <div className="space-y-3">
+                {messagePreview.length > 0 ? (
+                  messagePreview.map((message) => (
+                    <div
+                      key={message.id}
+                      className="rounded-[1.2rem] border border-[var(--color-line)] bg-white/74 px-4 py-3"
+                    >
+                      <div className="flex items-center gap-2 text-xs text-[var(--color-muted)]">
+                        <MessageSquareText size={14} />
+                        <span>{message.sender}</span>
+                      </div>
+                      <p className="mt-2 text-sm text-[var(--color-ink)]">{message.content}</p>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-[var(--color-ink-soft)]">Brak wiadomości. Zacznij rozmowę, gdy tylko będziesz chciał coś ustalić.</p>
+                )}
+              </div>
+
+              <div className="mt-4 flex items-center gap-2">
+                <input
+                  type="text"
+                  value={newMessage}
+                  onChange={(event) => setNewMessage(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      void sendCurrentMessage();
+                    }
+                  }}
+                  placeholder="Napisz krótką wiadomość..."
+                  className="input-base flex-1"
+                />
+                <button
+                  type="button"
+                  onClick={() => void sendCurrentMessage()}
+                  disabled={!newMessage.trim()}
+                  className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[1rem] bg-[linear-gradient(135deg,var(--color-accent),var(--color-accent-strong))] text-white shadow-[0_16px_30px_rgba(239,99,81,0.2)] transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-45"
+                >
+                  <Send size={16} />
+                </button>
+              </div>
+            </Panel>
+          </div>
+        </section>
       )}
+
+      <section className="grid gap-4 lg:grid-cols-3">
+        <Panel title="Podsumowanie dnia" description="Najważniejsze liczby w jednym miejscu.">
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { label: 'Ukończone dziś', value: String(completedToday), icon: TrendingUp },
+              { label: 'Wydarzenia dziś', value: String(todayEvents.length), icon: Clock3 },
+              { label: 'Cele w toku', value: String(goalsInProgress), icon: Target },
+            ].map((item) => (
+              <div key={item.label} className="rounded-[1.2rem] bg-white/74 px-4 py-4">
+                <item.icon size={18} className="text-[var(--color-accent)]" />
+                <p className="mt-3 font-display text-3xl font-bold tracking-[-0.06em] text-[var(--color-ink)]">
+                  {item.value}
+                </p>
+                <p className="mt-1 text-xs text-[var(--color-ink-soft)]">{item.label}</p>
+              </div>
+            ))}
+          </div>
+        </Panel>
+      </section>
     </div>
   );
 }

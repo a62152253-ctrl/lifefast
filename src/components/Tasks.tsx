@@ -63,6 +63,11 @@ function getCategoryStyle(id: string) {
   return TASK_CATEGORIES.find(c => c.id === id)?.color ?? 'bg-gray-100 text-gray-600 border-gray-200';
 }
 
+function toTaskDate(value?: Timestamp | Date | null): Date {
+  if (!value) return new Date();
+  return value instanceof Timestamp ? value.toDate() : value;
+}
+
 function dueDateLabel(dateStr: string): { label: string; urgent: boolean } {
   try {
     const d = parseISO(dateStr);
@@ -468,7 +473,7 @@ export default function Tasks() {
                           <div className="flex items-center gap-1 text-gray-300">
                             <Clock size={11} />
                             <span className="text-[10px] font-black uppercase tracking-widest">
-                              {format(task.createdAt?.toDate?.() || new Date(), 'd MMM', { locale: pl })}
+                              {format(toTaskDate(task.createdAt), 'd MMM', { locale: pl })}
                             </span>
                           </div>
                         </div>

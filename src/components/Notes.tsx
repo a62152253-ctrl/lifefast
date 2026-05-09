@@ -212,7 +212,9 @@ export default function Notes() {
       showToast({ type: 'warning', message: 'Treść musi mieć co najmniej 10 znaków' });
       return;
     }
-    if (trimmedContent.length > 50000) {
+    if (trimmedContent.length > 10000) {
+      showToast({ type: 'warning', message: 'Tresc nie moze przekraczac 10 000 znakow' });
+      return;
       showToast({ type: 'warning', message: 'Treść nie może przekraczać 50 000 znaków' });
       return;
     }

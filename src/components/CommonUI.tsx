@@ -21,6 +21,7 @@ import {
   ArrowRight,
   MessageCircle,
   Target,
+  Shield,
 } from 'lucide-react';
 import React, { ReactNode } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
